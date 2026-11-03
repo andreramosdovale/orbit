@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # O app é só para Windows, então a CI roda em Windows.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: moon/package-lock.json
+
+      - name: npm ci
+        working-directory: moon
+        run: npm ci
+
+      - name: Rust fmt
+        run: cargo fmt --all --check
+
+      # O Tauri exige moon/dist para compilar.
+      - name: Front build
+        working-directory: moon
+        run: npm run build
+
+      - name: Front lint (Biome)
+        working-directory: moon
+        run: npm run check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Testes
+        run: cargo test --workspace
+
+      - name: Bindings atualizados
+        shell: bash
+        run: |
+          git diff --exit-code moon/src/bindings.ts || {
+            echo "::error::moon/src/bindings.ts está desatualizado. Rode 'cargo test -p moon' e commite o arquivo."
+            exit 1
+          }
