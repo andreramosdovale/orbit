@@ -1,0 +1,8 @@
+[package]
+name = "orbit-shared"
+description = "Protocolo e tipos compartilhados entre sun (servidor) e moon (app)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true

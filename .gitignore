@@ -1,0 +1,9 @@
+/target/
+node_modules/
+dist/
+
+# Dados locais do servidor
+*.db
+*.db-shm
+*.db-wal
+.env

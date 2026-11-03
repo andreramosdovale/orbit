@@ -1,0 +1,12 @@
+[package]
+name = "sun"
+description = "Servidor self-hosted do Orbit"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+orbit-shared.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
