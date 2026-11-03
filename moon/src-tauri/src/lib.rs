@@ -25,26 +25,32 @@ fn specta_builder() -> Builder<tauri::Wry> {
 }
 
 /// Gera `src/bindings.ts`. Roda em todo `tauri dev` e no teste `tests/bindings.rs`.
-pub fn export_bindings() {
-    specta_builder()
-        .export(Typescript::default(), BINDINGS_PATH)
-        .expect("falha ao exportar bindings TypeScript");
+pub fn export_bindings() -> Result<(), specta_typescript::Error> {
+    specta_builder().export(Typescript::default(), BINDINGS_PATH)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = specta_builder();
 
+    // Em dev, bindings desatualizados não devem impedir o app de abrir: o teste
+    // `tests/bindings.rs` (e a CI) é quem garante que o arquivo está certo.
     #[cfg(debug_assertions)]
-    export_bindings();
+    if let Err(err) = export_bindings() {
+        eprintln!("aviso: falha ao exportar bindings TypeScript: {err}");
+    }
 
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(err) = result {
+        eprintln!("erro ao executar o app: {err}");
+        std::process::exit(1);
+    }
 }

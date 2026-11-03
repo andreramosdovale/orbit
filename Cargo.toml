@@ -23,6 +23,7 @@ all = { level = "warn", priority = -1 }
 dbg_macro = "warn"
 todo = "warn"
 unwrap_used = "warn"
+expect_used = "warn"
 
 # Profiles só valem na raiz do workspace.
 # https://tauri.app/concept/size/#cargo-configuration

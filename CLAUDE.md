@@ -50,7 +50,7 @@ cd moon && npm run build                 # tsc + vite build (gera moon/dist)
 
 - **Idioma:** identificadores, nomes de arquivo e crates em inglês. Docs, comentários, mensagens de log/erro e descrições de commit em português.
 - **Commits:** Conventional Commits (`feat(sun): ...`, `fix(moon): ...`, `docs: ...`, `chore: ...`). Escopo = pacote.
-- **Erros em Rust:** nada de `unwrap()` fora de testes (o clippy avisa). Use `anyhow` em binários e `thiserror` em bibliotecas quando houver erros tipados.
+- **Erros em Rust:** nada de `unwrap()`/`expect()` fora de testes (o clippy avisa). Use `anyhow` em binários e `thiserror` em bibliotecas quando houver erros tipados.
 - **Logs:** `tracing` (`info!`, `warn!` etc.). Nada de `println!` no `sun`.
 - **Formatação é automática:** um hook roda `rustfmt`/Biome após cada edição. Não formate à mão e não brigue com o formatador.
 - **Dependências:** dependências Rust usadas por mais de um crate vão em `[workspace.dependencies]`. Pergunte antes de adicionar uma dependência nova relevante.
