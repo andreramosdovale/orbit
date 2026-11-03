@@ -12,3 +12,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0006](0006-transmissao-de-tela-hibrida.md) | Transmissão de tela: webview na v1, captura nativa em Rust na v2 | Aceita |
 | [0007](0007-auto-cadastro-sem-convite.md) | Auto-cadastro sem convite: acesso controlado pelo Tailscale | Aceita |
 | [0008](0008-jwt-com-segredo-no-sqlite.md) | JWT HS256 com segredo guardado no SQLite, válido por 30 dias | Aceita |
+| [0009](0009-autenticacao-do-ws-na-primeira-mensagem.md) | Autenticação do WebSocket pela primeira mensagem | Aceita |

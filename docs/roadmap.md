@@ -17,7 +17,7 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 - [x] SQLite com migrations (`sqlx`), arquivo `orbit.db` ao lado do executável
 - [x] Auto-cadastro com usuário + senha (argon2), sem convite ([spec 001](specs/001-cadastro-de-usuarios.md), [ADR 0007](decisions/0007-auto-cadastro-sem-convite.md))
 - [x] Login com usuário + senha, JWT ([spec 002](specs/002-login-jwt.md), [ADR 0008](decisions/0008-jwt-com-segredo-no-sqlite.md))
-- [ ] `/ws` autenticado
+- [x] `/ws` autenticado ([spec 003](specs/003-ws-autenticado.md), [ADR 0009](decisions/0009-autenticacao-do-ws-na-primeira-mensagem.md))
 - [ ] Tela de login no `moon` com endereço do servidor configurável
 - [ ] Testes de front com Vitest
 

@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
+    /// Primeira mensagem da conexão: o JWT recebido no login.
+    Auth {
+        token: String,
+    },
     Ping,
 }
 
@@ -18,6 +22,12 @@ pub enum ClientMessage {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
+    /// Token aceito: a conexão está autenticada como `user`.
+    AuthOk {
+        user: User,
+    },
+    /// Autenticação recusada. O servidor fecha a conexão com o código 1008 logo depois.
+    AuthError,
     Pong,
 }
 
@@ -52,7 +62,7 @@ pub struct LoginRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct LoginResponse {
-    /// JWT HS256, válido por 30 dias. Vai em `Authorization: Bearer <token>`.
+    /// JWT HS256, válido por 30 dias. No `/ws`, vai na mensagem `auth`; no REST, em `Authorization: Bearer <token>`.
     pub token: String,
     pub user: User,
 }
@@ -104,6 +114,39 @@ mod tests {
         assert_eq!(
             serde_json::to_value(ServerMessage::Pong).unwrap(),
             json!({ "type": "pong" })
+        );
+    }
+
+    #[test]
+    fn client_auth_wire_format() {
+        let msg = ClientMessage::Auth {
+            token: "a.b.c".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(msg).unwrap(),
+            json!({ "type": "auth", "token": "a.b.c" })
+        );
+    }
+
+    #[test]
+    fn server_auth_ok_wire_format() {
+        let msg = ServerMessage::AuthOk {
+            user: User {
+                id: 1,
+                username: "fulano".into(),
+            },
+        };
+        assert_eq!(
+            serde_json::to_value(msg).unwrap(),
+            json!({ "type": "auth_ok", "user": { "id": 1, "username": "fulano" } })
+        );
+    }
+
+    #[test]
+    fn server_auth_error_wire_format() {
+        assert_eq!(
+            serde_json::to_value(ServerMessage::AuthError).unwrap(),
+            json!({ "type": "auth_error" })
         );
     }
 

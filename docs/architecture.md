@@ -38,6 +38,7 @@ flowchart LR
 
 ## Fluxos principais
 
+- **Autenticação:** `moon` faz login via REST e recebe um JWT, que envia como primeira mensagem do `/ws` para o `sun` saber quem é aquela conexão. Ver [ADR 0009](decisions/0009-autenticacao-do-ws-na-primeira-mensagem.md).
 - **Chat:** `moon` → WebSocket `/ws` do `sun` → `sun` persiste no SQLite e faz broadcast para os clientes conectados.
 - **Voz:** `moon` pede um token ao `sun` (REST), conecta direto no LiveKit pelo SDK JS no webview.
 - **Transmissão de tela:** o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md).
