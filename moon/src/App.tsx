@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { commands } from "./bindings";
+import { Register } from "./features/auth/Register";
 import "./App.css";
 
 function App() {
@@ -11,8 +12,8 @@ function App() {
 
   return (
     <main className="container">
-      <h1>Orbit</h1>
-      <p className="version">v{version}</p>
+      <Register />
+      <p className="version">Orbit v{version}</p>
     </main>
   );
 }

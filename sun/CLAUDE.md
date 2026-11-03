@@ -1,25 +1,33 @@
 # sun: servidor
 
-Servidor do Orbit que roda no PC do host. axum + tokio. Vai ganhar sqlx (SQLite) na Fase 1 e emissão de tokens LiveKit na Fase 3.
+Servidor do Orbit que roda no PC do host. axum + tokio + sqlx (SQLite). Vai ganhar emissão de tokens LiveKit na Fase 3.
 
 ## Estrutura
 
 ```
 src/
-├── main.rs   # só lê e valida config (env), inicia tracing e chama sun::serve(). Sem lógica.
-├── lib.rs    # app(): monta o Router; serve(): serve com ConnectInfo e encerramento gracioso
-└── ws.rs     # WebSocket /ws: recebe ClientMessage, responde ServerMessage
+├── main.rs          # só lê e valida config (env), abre o banco, inicia tracing e chama sun::serve(). Sem lógica.
+├── lib.rs           # AppState; app(state): Router + CORS + limite de corpo; serve(): ConnectInfo e shutdown gracioso
+├── db.rs            # connect(path) / connect_in_memory(): pool SQLite + migrations
+├── error.rs         # ApiError → ApiErrorBody (IntoResponse)
+├── auth/
+│   ├── mod.rs       # routes(): POST /auth/register (handler fino)
+│   └── register.rs  # validação, hash argon2id, INSERT. Erro de domínio: RegisterError
+└── ws.rs            # WebSocket /ws: recebe ClientMessage, responde ServerMessage
+migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
-├── api.rs        # testes de integração
-└── common/mod.rs # helpers: TestServer, send/recv com timeout
+├── api.rs           # /health e WebSocket
+├── auth.rs          # cadastro
+└── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer, send/recv
 ```
 
 Conforme o servidor crescer, organize **por domínio** (`auth/`, `chat/`, `voice/`), cada um com seu `mod.rs` expondo as rotas (`fn routes() -> Router<AppState>`) e montado em `lib.rs`.
 
 ## Padrões
 
-- **Testável sem rede:** toda rota HTTP deve ser testável via `sun::app().oneshot(request)` (`tower::ServiceExt`). Só o WebSocket precisa de porta real (`127.0.0.1:0`). Siga os exemplos em `tests/api.rs`.
-- **Estado compartilhado** (pool do banco, config, conexões WS): uma struct `AppState` com `Clone` passada via `Router::with_state`. `app()` vai passar a receber o estado, para os testes poderem usar um SQLite em memória.
+- **Testável sem rede:** toda rota HTTP deve ser testável via `sun::app(state).oneshot(request)` (`tower::ServiceExt`), com `common::state()` (SQLite em memória). Só o WebSocket precisa de porta real (`127.0.0.1:0`). Siga os exemplos em `tests/auth.rs` e `tests/api.rs`.
+- **Estado compartilhado** (pool do banco, config, conexões WS): campos da struct `AppState` (`Clone`), passada via `Router::with_state`.
+- **Banco:** mudança de schema = arquivo novo em `migrations/` (`NNNN_descricao.sql`). Nunca edite uma migration já commitada.
 - **Mensagens do WebSocket:** sempre os tipos de `orbit_shared`. Nunca monte JSON à mão. Mensagem inválida gera `tracing::warn!` e é ignorada, sem derrubar a conexão.
 - **Config via variáveis de ambiente**, com padrão sensato em `main.rs` (`SUN_ADDR`, padrão `0.0.0.0:7700`). Documente cada variável nova aqui.
 
@@ -64,14 +72,15 @@ O clippy permite `unwrap`/`expect` em testes (`clippy.toml`), mas falhas precisa
 - **Encerramento gracioso:** `axum::serve(...).with_graceful_shutdown(...)` ouvindo `Ctrl+C`, para fechar conexões e o banco sem corromper dados.
 - **Logs estruturados:** campos em vez de interpolação (`tracing::info!(user_id = %id, "entrou na sala")`). Use `#[tracing::instrument(skip(...))]` em handlers relevantes. **Nunca logue segredos**: tokens, JWT, convites, senhas.
 - **Validação na borda:** valide e normalize entrada no handler (tamanho, formato) e converta para tipos do domínio (newtypes como `UserId`, `RoomName`) antes de passar adiante. Dentro do domínio, os dados já são válidos.
-- **SQL (Fase 1):** sempre consultas parametrizadas do `sqlx` (`query!`/`query_as!`), nunca `format!` com SQL.
+- **SQL:** `sqlx::query`/`query_as`/`query_scalar` com `.bind(...)` (checadas em runtime e cobertas por testes; as macros `query!` exigiriam `sqlx-cli` na CI). Nunca `format!` com SQL.
 
 ## Variáveis de ambiente
 
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `SUN_ADDR` | `0.0.0.0:7700` | Endereço de escuta (`ip:porta`; inválido faz o servidor não subir) |
-| `RUST_LOG` | `info` | Filtro do `tracing` (ex.: `sun=debug`; inválido faz o servidor não subir) |
+| `SUN_DB` | `orbit.db` ao lado do executável | Caminho do arquivo SQLite (criado se não existir) |
+| `RUST_LOG` | `info,sun=debug` em dev, `info` em release | Filtro do `tracing` (ex.: `sun=debug`; inválido faz o servidor não subir) |
 
 ## Testes
 

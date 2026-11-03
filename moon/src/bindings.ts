@@ -9,9 +9,43 @@ export const commands = {
 };
 
 /* Types */
+/**  Corpo de toda resposta de erro da API REST. */
+export type ApiErrorBody = {
+	code: ApiErrorCode,
+	/**  Texto em português, pronto para mostrar ao usuário. */
+	message: string,
+};
+
+/**  Código estável do erro, para o front decidir o que fazer sem depender do texto. */
+export type ApiErrorCode = 
+/**  Corpo da requisição malformado (JSON inválido ou campo faltando). */
+"invalid_request" | 
+/**  Nome de usuário fora das regras. */
+"invalid_username" | 
+/**  Senha fora das regras. */
+"invalid_password" | 
+/**  Nome de usuário já cadastrado. */
+"username_taken" | 
+/**  Erro interno do servidor. Detalhes só no log do `sun`. */
+"internal";
+
 /**  Mensagens enviadas pelo cliente via WebSocket (`/ws`). */
 export type ClientMessage = { type: "ping" };
 
+/**  Corpo de `POST /auth/register`: auto-cadastro de um usuário novo. */
+export type RegisterRequest = {
+	/**  3 a 32 caracteres (`a-z`, `0-9`, `_`). O servidor converte para minúsculas. */
+	username: string,
+	/**  8 a 128 caracteres. */
+	password: string,
+};
+
 /**  Mensagens enviadas pelo servidor via WebSocket (`/ws`). */
 export type ServerMessage = { type: "pong" };
+
+/**  Usuário público. Nunca contém senha nem hash. */
+export type User = {
+	id: number,
+	username: string,
+};
 

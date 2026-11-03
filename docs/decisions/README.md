@@ -10,3 +10,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0004](0004-sqlite-persistencia-minima.md) | SQLite com persistência mínima | Aceita |
 | [0005](0005-tipos-gerados-com-specta.md) | Tipos TypeScript gerados do Rust com specta | Aceita |
 | [0006](0006-transmissao-de-tela-hibrida.md) | Transmissão de tela: webview na v1, captura nativa em Rust na v2 | Aceita |
+| [0007](0007-auto-cadastro-sem-convite.md) | Auto-cadastro sem convite: acesso controlado pelo Tailscale | Aceita |

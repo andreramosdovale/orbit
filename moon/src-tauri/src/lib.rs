@@ -1,7 +1,7 @@
 //! Lado Rust do app. Comandos expostos ao front são registrados em [`specta_builder`],
 //! que também gera `src/bindings.ts` (ver docs/decisions/0005).
 
-use orbit_shared::{ClientMessage, ServerMessage};
+use orbit_shared::{ApiErrorBody, ClientMessage, RegisterRequest, ServerMessage, User};
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
 
@@ -22,6 +22,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
         // Tipos do protocolo usados direto pelo front no WebSocket.
         .typ::<ClientMessage>()
         .typ::<ServerMessage>()
+        // Tipos da API REST do `sun` usados pelo front via `fetch`.
+        .typ::<RegisterRequest>()
+        .typ::<User>()
+        .typ::<ApiErrorBody>()
 }
 
 /// Gera `src/bindings.ts`. Roda em todo `tauri dev` e no teste `tests/bindings.rs`.

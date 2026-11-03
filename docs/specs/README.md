@@ -4,4 +4,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 
 | # | Spec | Fase | Status |
 |---|---|---|---|
-| — | (nenhuma ainda) | | |
+| 001 | [Cadastro de usuários (auto-cadastro)](001-cadastro-de-usuarios.md) | 1 | Em andamento |

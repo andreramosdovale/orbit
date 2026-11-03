@@ -15,7 +15,7 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn health_returns_ok() -> anyhow::Result<()> {
     let req = Request::get("/health").body(Body::empty())?;
-    let res = sun::app().oneshot(req).await?;
+    let res = sun::app(common::state().await?).oneshot(req).await?;
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = res.into_body().collect().await?.to_bytes();

@@ -1,15 +1,30 @@
 use std::env::{self, VarError};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use anyhow::{Context, bail};
 use tracing_subscriber::EnvFilter;
 
 const DEFAULT_ADDR: &str = "0.0.0.0:7700";
-const DEFAULT_LOG_FILTER: &str = "info";
+/// Filtro padrão quando `RUST_LOG` não está definido: em dev (`cargo run`) mostra
+/// os `debug!` do `sun`; no build de release fica só em `info`.
+const DEFAULT_LOG_FILTER: &str = if cfg!(debug_assertions) {
+    "info,sun=debug"
+} else {
+    "info"
+};
+const DEFAULT_DB_FILE: &str = "orbit.db";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_tracing()?;
+
+    let db_path = db_path()?;
+    let db = sun::db::connect(&db_path)
+        .await
+        .with_context(|| format!("abrindo o banco em {}", db_path.display()))?;
+    tracing::info!(path = %db_path.display(), "banco aberto");
+    let state = sun::AppState { db };
 
     let addr = listen_addr()?;
     let listener = tokio::net::TcpListener::bind(addr)
@@ -19,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let local_addr = listener.local_addr().context("lendo o endereço local")?;
     tracing::info!(addr = %local_addr, "sun ouvindo");
 
-    sun::serve(listener, shutdown_signal())
+    sun::serve(listener, state, shutdown_signal())
         .await
         .context("servidor HTTP encerrou com erro")?;
 
@@ -36,7 +51,7 @@ fn optional_env(name: &str) -> anyhow::Result<Option<String>> {
     }
 }
 
-/// Configura o `tracing` a partir de `RUST_LOG` (padrão `info`). Filtro inválido é erro.
+/// Configura o `tracing` a partir de `RUST_LOG` (padrão: [`DEFAULT_LOG_FILTER`]). Filtro inválido é erro.
 fn init_tracing() -> anyhow::Result<()> {
     let filter = match optional_env("RUST_LOG")? {
         Some(value) => {
@@ -58,6 +73,18 @@ fn listen_addr() -> anyhow::Result<SocketAddr> {
     value
         .parse()
         .with_context(|| format!("SUN_ADDR inválido: {value:?} (esperado ip:porta)"))
+}
+
+/// Caminho do banco a partir de `SUN_DB` (padrão: `orbit.db` ao lado do executável).
+fn db_path() -> anyhow::Result<PathBuf> {
+    if let Some(value) = optional_env("SUN_DB")? {
+        return Ok(PathBuf::from(value));
+    }
+    let exe = env::current_exe().context("descobrindo o caminho do executável")?;
+    let dir = exe
+        .parent()
+        .context("o executável não está dentro de uma pasta")?;
+    Ok(dir.join(DEFAULT_DB_FILE))
 }
 
 /// Completa no Ctrl+C. Se não der para ouvir o sinal, loga e segue rodando até o processo morrer.
