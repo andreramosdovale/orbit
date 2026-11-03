@@ -9,13 +9,12 @@ orbit/
 └── shared/    # crate com o protocolo/tipos usados por sun e moon
 ```
 
-## Arquitetura
+## Documentação
 
-- **Rede:** os amigos acessam o PC do host pelo [Tailscale](https://tailscale.com) (compartilhando só a máquina do servidor).
-- **sun:** API REST + WebSocket (chat, presença, auth via convite + JWT), persistência mínima em SQLite e emissão de tokens do LiveKit.
-- **Voz/vídeo:** [LiveKit server](https://github.com/livekit/livekit) (SFU) roda ao lado do `sun` no PC do host.
-- **moon:** UI e voz no webview (LiveKit JS); a transmissão de tela é capturada nativamente em Rust
-  (Windows Graphics Capture + WASAPI process loopback) e publicada como uma track separada.
+- [`docs/architecture.md`](docs/architecture.md): como as peças se encaixam
+- [`docs/roadmap.md`](docs/roadmap.md): fases e progresso
+- [`docs/decisions/`](docs/decisions/README.md): por que cada escolha foi feita
+- [`CLAUDE.md`](CLAUDE.md): guia para desenvolver com o Claude Code (vale para humanos também)
 
 ## Pré-requisitos
 
@@ -33,3 +32,11 @@ cargo run -p sun
 npm install
 npm run tauri dev
 ```
+
+## Desenvolvendo com o Claude Code
+
+O repositório já vem configurado para o Claude Code:
+
+- `CLAUDE.md` na raiz e em cada pacote com contexto e convenções
+- hook que formata automaticamente (rustfmt/Biome) cada arquivo editado
+- skills: `/verify` (todas as checagens), `/spec` (nova funcionalidade), `/adr` (nova decisão)

@@ -1,0 +1,63 @@
+# Arquitetura
+
+O Orbit é um "Discord" self-hosted para um grupo pequeno de amigos (até ~10 pessoas). Ele oferece chat de texto, salas de voz e transmissão de tela.
+
+```mermaid
+flowchart LR
+    subgraph host["PC do host (Windows)"]
+        sun["sun<br/>axum: REST + WebSocket"]
+        db[("SQLite<br/>orbit.db")]
+        lk["LiveKit server<br/>(SFU)"]
+        sun --- db
+        sun -. gera tokens .-> lk
+    end
+
+    subgraph friend["PC de cada amigo (Windows)"]
+        subgraph moon["moon (Tauri 2)"]
+            ui["Webview<br/>React + LiveKit JS"]
+            core["Core Rust<br/>captura de tela nativa"]
+            ui <-- "commands (bindings.ts)" --> core
+        end
+    end
+
+    ui -- "HTTP / WS (chat, auth)" --> sun
+    ui -- "WebRTC (voz, vídeo)" --> lk
+    core -- "WebRTC (tela)" --> lk
+
+    friend <-. "Tailscale (rede privada)" .-> host
+```
+
+## Componentes
+
+| Componente | Pasta | Tecnologia | Responsabilidade |
+|---|---|---|---|
+| **sun** | `sun/` | Rust, axum, tokio, sqlx (SQLite) | Auth, canais, mensagens, presença, emissão de tokens LiveKit |
+| **moon** | `moon/` | Tauri 2, Vite, React, TypeScript | UI, chat, voz (LiveKit JS no webview), transmissão de tela (Rust nativo) |
+| **shared** | `shared/` | Rust, serde, specta | Tipos do protocolo usados por `sun` e `moon` |
+| **LiveKit** | (binário externo) | Go | SFU: recebe cada stream uma vez e redistribui |
+
+## Fluxos principais
+
+- **Chat:** `moon` → WebSocket `/ws` do `sun` → `sun` persiste no SQLite e faz broadcast para os clientes conectados.
+- **Voz:** `moon` pede um token ao `sun` (REST), conecta direto no LiveKit pelo SDK JS no webview.
+- **Transmissão de tela:** o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md).
+
+## Fonte única de tipos
+
+```
+shared/src/lib.rs  ──(specta)──►  moon/src/bindings.ts  ◄── front importa daqui
+        │
+        └──(serde)──► sun  (serializa/desserializa as mesmas structs)
+```
+
+`moon/src/bindings.ts` é **gerado**: nunca edite à mão. Ele é regenerado em todo `npm run tauri dev` e em `cargo test -p moon`. A CI falha se estiver desatualizado. Ver [ADR 0005](decisions/0005-tipos-gerados-com-specta.md).
+
+## Rede
+
+O host compartilha o próprio PC com os amigos via **Tailscale**. O `sun` escuta em `0.0.0.0:7700` (configurável com `SUN_ADDR`). O tráfego já vai criptografado pelo WireGuard do Tailscale. Ver [ADR 0003](decisions/0003-rede-via-tailscale.md).
+
+## Limites conhecidos
+
+- O PC do host precisa estar ligado.
+- **O upload do host é o gargalo** de voz e vídeo: cada espectador recebe uma cópia de cada stream vinda do LiveKit. Uma tela 1080p60 usa uns 6–8 Mbps por espectador.
+- Só Windows (tanto o host quanto os clientes).
