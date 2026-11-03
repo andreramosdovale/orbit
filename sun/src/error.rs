@@ -18,6 +18,8 @@ pub enum ApiError {
     InvalidPassword,
     #[error("nome de usuário já existe")]
     UsernameTaken,
+    #[error("usuário ou senha incorretos")]
+    InvalidCredentials,
     /// A causa só vai para o log; o cliente recebe uma mensagem genérica.
     #[error("erro interno")]
     Internal(#[source] BoxError),
@@ -51,6 +53,11 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 ApiErrorCode::UsernameTaken,
                 "Esse nome de usuário já existe.".to_owned(),
+            ),
+            Self::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                ApiErrorCode::InvalidCredentials,
+                "Usuário ou senha incorretos.".to_owned(),
             ),
             Self::Internal(source) => {
                 tracing::error!(error = ?source, "erro interno ao processar requisição");

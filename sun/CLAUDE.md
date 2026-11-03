@@ -6,18 +6,20 @@ Servidor do Orbit que roda no PC do host. axum + tokio + sqlx (SQLite). Vai ganh
 
 ```
 src/
-├── main.rs          # só lê e valida config (env), abre o banco, inicia tracing e chama sun::serve(). Sem lógica.
+├── main.rs          # só lê e valida config (env), abre o banco, carrega o segredo do JWT, inicia tracing e chama sun::serve(). Sem lógica.
 ├── lib.rs           # AppState; app(state): Router + CORS + limite de corpo; serve(): ConnectInfo e shutdown gracioso
 ├── db.rs            # connect(path) / connect_in_memory(): pool SQLite + migrations
 ├── error.rs         # ApiError → ApiErrorBody (IntoResponse)
 ├── auth/
-│   ├── mod.rs       # routes(): POST /auth/register (handler fino)
-│   └── register.rs  # validação, hash argon2id, INSERT. Erro de domínio: RegisterError
+│   ├── mod.rs       # routes(): POST /auth/register e /auth/login (handlers finos)
+│   ├── register.rs  # validação, hash argon2id, INSERT. Erro de domínio: RegisterError
+│   ├── login.rs     # confere senha (argon2) e emite o token. Erro de domínio: LoginError
+│   └── jwt.rs       # JwtKeys: segredo no SQLite (tabela secrets), issue/verify (ADR 0008)
 └── ws.rs            # WebSocket /ws: recebe ClientMessage, responde ServerMessage
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
 ├── api.rs           # /health e WebSocket
-├── auth.rs          # cadastro
+├── auth.rs          # cadastro, login e persistência do segredo do JWT
 └── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer, send/recv
 ```
 

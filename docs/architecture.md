@@ -31,7 +31,7 @@ flowchart LR
 
 | Componente | Pasta | Tecnologia | Responsabilidade |
 |---|---|---|---|
-| **sun** | `sun/` | Rust, axum, tokio, sqlx (SQLite) | Contas (auto-cadastro, ADR 0007), auth, canais, mensagens, presença, emissão de tokens LiveKit |
+| **sun** | `sun/` | Rust, axum, tokio, sqlx (SQLite) | Contas (auto-cadastro, ADR 0007), auth (JWT, ADR 0008), canais, mensagens, presença, emissão de tokens LiveKit |
 | **moon** | `moon/` | Tauri 2, Vite, React, TypeScript | UI, chat, voz (LiveKit JS no webview), transmissão de tela (Rust nativo) |
 | **shared** | `shared/` | Rust, serde, specta | Tipos do protocolo usados por `sun` e `moon` |
 | **LiveKit** | (binário externo) | Go | SFU: recebe cada stream uma vez e redistribui |

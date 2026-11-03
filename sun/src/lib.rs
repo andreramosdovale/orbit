@@ -16,6 +16,7 @@ use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
+pub use auth::{Claims, JwtError, JwtKeys, SecretError, now};
 pub use ws::MAX_MESSAGE_SIZE;
 
 /// Tamanho máximo do corpo de uma requisição HTTP. A API só recebe JSON pequeno.
@@ -32,6 +33,8 @@ pub const ALLOWED_ORIGINS: [&str; 3] = [
 #[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
+    /// Chaves do JWT, carregadas do banco quando o servidor sobe (ADR 0008).
+    pub jwt: JwtKeys,
 }
 
 /// Monta o router com todas as rotas do servidor.

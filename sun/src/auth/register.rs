@@ -85,7 +85,7 @@ fn validate_password(password: &str) -> Result<(), RegisterError> {
 
 /// Hash argon2id com salt aleatório, no formato PHC (`$argon2id$v=19$...`).
 /// CPU pesado: chame dentro de `spawn_blocking`.
-fn hash_password(password: &str) -> Result<String, RegisterError> {
+pub(super) fn hash_password(password: &str) -> Result<String, RegisterError> {
     Argon2::default()
         .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())

@@ -16,6 +16,7 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 | `GET` | `/health` | não | `200 ok` (texto) | Verificação de vida |
 | `GET` | `/ws` | não (Fase 1: JWT) | upgrade WebSocket | Canal de tempo real |
 | `POST` | `/auth/register` | não | `201` + `User` | Auto-cadastro ([spec 001](specs/001-cadastro-de-usuarios.md)) |
+| `POST` | `/auth/login` | não | `200` + `LoginResponse` | Login, devolve um JWT ([spec 002](specs/002-login-jwt.md)) |
 
 Corpos HTTP acima de **16 KiB** (`sun::MAX_BODY_SIZE`) são recusados. O CORS só libera as origens do `moon` (`sun::ALLOWED_ORIGINS`).
 
@@ -32,6 +33,34 @@ Corpo `RegisterRequest`:
 
 Sucesso: `201` com `User`, ou seja, `{ "id": 1, "username": "fulano" }`.
 
+### `POST /auth/login`
+
+Corpo `LoginRequest`:
+
+```json
+{ "username": "fulano", "password": "senha-boa-123" }
+```
+
+- `username` é convertido para minúsculas antes da busca. As regras de formato do cadastro não são aplicadas: um valor fora delas só não encontra conta.
+- Usuário inexistente e senha errada dão a **mesma** resposta: `401 invalid_credentials`.
+
+Sucesso: `200` com `LoginResponse`:
+
+```json
+{ "token": "<jwt>", "user": { "id": 1, "username": "fulano" } }
+```
+
+### Autenticação (JWT)
+
+O token é um JWT HS256 ([ADR 0008](decisions/0008-jwt-com-segredo-no-sqlite.md)) que o cliente envia em `Authorization: Bearer <token>`. Nenhuma rota exige o token ainda; o `/ws` passa a exigir na próxima spec.
+
+| Claim | Valor |
+|---|---|
+| `sub` | id do usuário, como string (`"1"`) |
+| `username` | nome normalizado |
+| `iat` | emissão (Unix, segundos) |
+| `exp` | `iat` + 30 dias |
+
 ### Erros da API REST
 
 Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "message": "<texto para o usuário>" }`.
@@ -41,6 +70,7 @@ Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "me
 | `400` | `invalid_request` | JSON malformado ou campo faltando |
 | `400` | `invalid_username` | Usuário fora das regras |
 | `400` | `invalid_password` | Senha fora das regras |
+| `401` | `invalid_credentials` | Login com usuário ou senha incorretos |
 | `409` | `username_taken` | Usuário já existe |
 | `500` | `internal` | Erro interno (detalhes só no log do `sun`) |
 

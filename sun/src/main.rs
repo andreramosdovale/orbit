@@ -24,7 +24,10 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("abrindo o banco em {}", db_path.display()))?;
     tracing::info!(path = %db_path.display(), "banco aberto");
-    let state = sun::AppState { db };
+    let jwt = sun::JwtKeys::load_or_create(&db)
+        .await
+        .context("carregando o segredo do JWT")?;
+    let state = sun::AppState { db, jwt };
 
     let addr = listen_addr()?;
     let listener = tokio::net::TcpListener::bind(addr)

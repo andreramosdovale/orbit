@@ -1,4 +1,5 @@
-//! Testes do auto-cadastro (`POST /auth/register`). Ver `docs/specs/001-cadastro-de-usuarios.md`.
+//! Testes do auto-cadastro (`POST /auth/register`, spec 001) e do login
+//! (`POST /auth/login`, spec 002). Ver `docs/specs/`.
 
 mod common;
 
@@ -9,8 +10,10 @@ use argon2::password_hash::phc::PasswordHash;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
 use common::{post_json, state};
-use orbit_shared::{ApiErrorBody, ApiErrorCode, RegisterRequest, User};
-use sun::AppState;
+use orbit_shared::{
+    ApiErrorBody, ApiErrorCode, LoginRequest, LoginResponse, RegisterRequest, User,
+};
+use sun::{AppState, JwtKeys};
 use tower::ServiceExt;
 
 const PASSWORD: &str = "senha-boa-123";
@@ -203,5 +206,155 @@ async fn register_cors_allows_app_origin() -> anyhow::Result<()> {
             assert!(allow.is_none(), "origem {origin} não deveria ser liberada");
         }
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------- login (spec 002)
+
+async fn login(
+    state: &AppState,
+    username: &str,
+    password: &str,
+) -> anyhow::Result<common::JsonResponse> {
+    let req = LoginRequest {
+        username: username.into(),
+        password: password.into(),
+    };
+    post_json(state, "/auth/login", &req).await
+}
+
+/// Estado com `fulano` / `PASSWORD` já cadastrado.
+async fn state_with_fulano() -> anyhow::Result<(AppState, User)> {
+    let state = state().await?;
+    let res = register(&state, "fulano", PASSWORD).await?;
+    assert_eq!(res.status, StatusCode::CREATED);
+    let user = res.json()?;
+    Ok((state, user))
+}
+
+#[tokio::test]
+async fn login_returns_token_and_user() -> anyhow::Result<()> {
+    let (state, user) = state_with_fulano().await?;
+
+    let res = login(&state, "fulano", PASSWORD).await?;
+
+    assert_eq!(res.status, StatusCode::OK);
+    let body: LoginResponse = res.json()?;
+    assert_eq!(body.user, user);
+    assert!(!body.token.is_empty());
+
+    let claims = state.jwt.verify(&body.token, sun::now())?;
+    assert_eq!(claims.sub, user.id.to_string());
+    assert_eq!(claims.username, "fulano");
+    Ok(())
+}
+
+#[tokio::test]
+async fn login_is_case_insensitive() -> anyhow::Result<()> {
+    let (state, user) = state_with_fulano().await?;
+
+    let res = login(&state, "FULANO", PASSWORD).await?;
+
+    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.json::<LoginResponse>()?.user, user);
+    Ok(())
+}
+
+#[tokio::test]
+async fn login_wrong_password_returns_401() -> anyhow::Result<()> {
+    let (state, _) = state_with_fulano().await?;
+
+    let res = login(&state, "fulano", "senha-errada-123").await?;
+
+    assert_error(
+        &res,
+        StatusCode::UNAUTHORIZED,
+        ApiErrorCode::InvalidCredentials,
+    )
+}
+
+#[tokio::test]
+async fn login_unknown_user_returns_401() -> anyhow::Result<()> {
+    let (state, _) = state_with_fulano().await?;
+
+    let unknown = login(&state, "ciclano", PASSWORD).await?;
+    let wrong_password = login(&state, "fulano", "senha-errada-123").await?;
+
+    assert_error(
+        &unknown,
+        StatusCode::UNAUTHORIZED,
+        ApiErrorCode::InvalidCredentials,
+    )?;
+    assert_eq!(
+        unknown.body, wrong_password.body,
+        "usuário inexistente e senha errada devem dar a mesma resposta"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn login_malformed_body_returns_400() -> anyhow::Result<()> {
+    let state = state().await?;
+
+    let res = post_json(
+        &state,
+        "/auth/login",
+        &serde_json::json!({ "username": "fulano" }),
+    )
+    .await?;
+
+    assert_error(&res, StatusCode::BAD_REQUEST, ApiErrorCode::InvalidRequest)
+}
+
+#[tokio::test]
+async fn login_response_never_contains_password() -> anyhow::Result<()> {
+    let (state, _) = state_with_fulano().await?;
+
+    let res = login(&state, "fulano", PASSWORD).await?;
+
+    assert_eq!(res.status, StatusCode::OK);
+    let body = String::from_utf8_lossy(&res.body);
+    assert!(!body.contains(PASSWORD));
+    assert!(!body.contains("argon2"));
+    Ok(())
+}
+
+/// Remove o arquivo de banco temporário mesmo se o teste falhar no meio.
+struct TempDb(std::path::PathBuf);
+
+impl Drop for TempDb {
+    fn drop(&mut self) {
+        // Limpeza de teste: se o arquivo já não existir, não há o que fazer.
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+#[tokio::test]
+async fn jwt_secret_persists() -> anyhow::Result<()> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos();
+    let path =
+        TempDb(std::env::temp_dir().join(format!("orbit-test-{}-{nanos}.db", std::process::id())));
+    let user = User {
+        id: 1,
+        username: "fulano".into(),
+    };
+
+    let db = sun::db::connect(&path.0).await?;
+    let first = JwtKeys::load_or_create(&db).await?;
+    let token = first.issue(&user, sun::now())?;
+    db.close().await;
+
+    let db = sun::db::connect(&path.0).await?;
+    let second = JwtKeys::load_or_create(&db).await?;
+    let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM secrets")
+        .fetch_one(&db)
+        .await?;
+    db.close().await;
+
+    assert_eq!(rows, 1, "o segredo não deveria ser gerado de novo");
+    let claims = second.verify(&token, sun::now())?;
+    assert_eq!(claims.username, "fulano");
     Ok(())
 }

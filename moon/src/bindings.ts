@@ -26,11 +26,27 @@ export type ApiErrorCode =
 "invalid_password" | 
 /**  Nome de usuário já cadastrado. */
 "username_taken" | 
+/**  Usuário ou senha incorretos no login (não diz qual dos dois). */
+"invalid_credentials" | 
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
 
 /**  Mensagens enviadas pelo cliente via WebSocket (`/ws`). */
 export type ClientMessage = { type: "ping" };
+
+/**  Corpo de `POST /auth/login`. */
+export type LoginRequest = {
+	/**  Convertido para minúsculas pelo servidor antes da busca. */
+	username: string,
+	password: string,
+};
+
+/**  Resposta de `POST /auth/login`: o JWT e o usuário logado. */
+export type LoginResponse = {
+	/**  JWT HS256, válido por 30 dias. Vai em `Authorization: Bearer <token>`. */
+	token: string,
+	user: User,
+};
 
 /**  Corpo de `POST /auth/register`: auto-cadastro de um usuário novo. */
 export type RegisterRequest = {
