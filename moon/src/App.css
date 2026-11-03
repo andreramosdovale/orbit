@@ -20,34 +20,42 @@ body {
   color: #8a8aa3;
 }
 
-.register {
+.auth-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 320px;
 }
 
-.register h1 {
+.auth-form h1 {
   margin: 0 0 8px;
 }
 
-.register label {
+.auth-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
 }
 
-.register input,
-.register button {
+.auth-form input,
+.auth-form button {
   padding: 8px;
   font: inherit;
 }
 
-.register .success {
+.auth-form .notice {
   color: #6fd38a;
 }
 
-.register .error {
+.auth-form .link {
+  background: none;
+  border: none;
+  color: #8a8aa3;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-form .error {
   color: #f07178;
 }

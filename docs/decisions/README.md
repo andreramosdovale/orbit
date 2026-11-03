@@ -13,3 +13,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0007](0007-auto-cadastro-sem-convite.md) | Auto-cadastro sem convite: acesso controlado pelo Tailscale | Aceita |
 | [0008](0008-jwt-com-segredo-no-sqlite.md) | JWT HS256 com segredo guardado no SQLite, válido por 30 dias | Aceita |
 | [0009](0009-autenticacao-do-ws-na-primeira-mensagem.md) | Autenticação do WebSocket pela primeira mensagem | Aceita |
+| [0010](0010-token-no-localstorage.md) | Token de sessão guardado no `localStorage` | Aceita |

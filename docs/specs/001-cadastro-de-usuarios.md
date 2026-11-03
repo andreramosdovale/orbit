@@ -1,6 +1,6 @@
 # 001. Cadastro de usuários (auto-cadastro)
 
-- **Status:** Em andamento (falta só a verificação manual)
+- **Status:** Concluída
 - **Fase:** 1 (ver `docs/roadmap.md`)
 
 ## Objetivo
@@ -92,7 +92,7 @@ CREATE TABLE users (
 - [x] `sun/tests/auth.rs::register_stores_argon2_hash`: o `password_hash` salvo começa com `$argon2id$`, valida com a senha original e não contém a senha.
 - [x] `sun/tests/auth.rs::register_cors_allows_app_origin`: preflight de `http://tauri.localhost` recebe `access-control-allow-origin`, e uma origem qualquer não.
 - [x] `moon/src/bindings.ts` contém `RegisterRequest`, `User` e `ApiErrorBody`.
-- [ ] Manual: com `cargo run -p sun` e `npm run tauri dev`, criar uma conta pelo form mostra sucesso, e repetir o mesmo usuário mostra "nome de usuário já existe".
+- [x] Manual (feito em 2026-11-03, ver [spec 004](004-tela-de-login.md#verificação-manual)): com `cargo run -p sun` e `npm run tauri dev`, criar uma conta pelo form mostra sucesso, e repetir o mesmo usuário mostra "nome de usuário já existe".
 - [x] `/verify` verde.
 
 ## Plano de implementação

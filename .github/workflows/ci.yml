@@ -44,6 +44,10 @@ jobs:
         working-directory: moon
         run: npm run check
 
+      - name: Front testes (Vitest)
+        working-directory: moon
+        run: npm test
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 

@@ -18,8 +18,8 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 - [x] Auto-cadastro com usuário + senha (argon2), sem convite ([spec 001](specs/001-cadastro-de-usuarios.md), [ADR 0007](decisions/0007-auto-cadastro-sem-convite.md))
 - [x] Login com usuário + senha, JWT ([spec 002](specs/002-login-jwt.md), [ADR 0008](decisions/0008-jwt-com-segredo-no-sqlite.md))
 - [x] `/ws` autenticado ([spec 003](specs/003-ws-autenticado.md), [ADR 0009](decisions/0009-autenticacao-do-ws-na-primeira-mensagem.md))
-- [ ] Tela de login no `moon` com endereço do servidor configurável
-- [ ] Testes de front com Vitest
+- [x] Tela de login no `moon` com endereço do servidor configurável ([spec 004](specs/004-tela-de-login.md), [ADR 0010](decisions/0010-token-no-localstorage.md))
+- [x] Testes de front com Vitest ([spec 004](specs/004-tela-de-login.md))
 
 ## Fase 2: Chat de texto
 

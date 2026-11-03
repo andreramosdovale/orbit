@@ -4,6 +4,7 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 
 | # | Spec | Fase | Status |
 |---|---|---|---|
-| 001 | [Cadastro de usuários (auto-cadastro)](001-cadastro-de-usuarios.md) | 1 | Em andamento |
+| 001 | [Cadastro de usuários (auto-cadastro)](001-cadastro-de-usuarios.md) | 1 | Concluída |
 | 002 | [Login com usuário + senha (JWT)](002-login-jwt.md) | 1 | Concluída |
 | 003 | [WebSocket `/ws` autenticado](003-ws-autenticado.md) | 1 | Concluída |
+| 004 | [Tela de login no `moon` e testes de front](004-tela-de-login.md) | 1 | Concluída |
