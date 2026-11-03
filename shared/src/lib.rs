@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Mensagens enviadas pelo cliente via WebSocket (`/ws`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     Ping,
@@ -14,6 +15,7 @@ pub enum ClientMessage {
 
 /// Mensagens enviadas pelo servidor via WebSocket (`/ws`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
     Pong,
