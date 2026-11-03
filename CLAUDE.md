@@ -26,6 +26,7 @@ cargo test --workspace                   # todos os testes Rust
 cargo clippy --workspace --all-targets -- -D warnings
 cd moon && npm run check                 # Biome (lint + format, modo CI)
 cd moon && npm run build                 # tsc + vite build (gera moon/dist)
+cd moon && npm test                      # testes de front (Vitest)
 ```
 
 **Use `/verify` para rodar tudo na ordem certa.** Os passos e os problemas conhecidos estão em `.claude/skills/verify/SKILL.md`.

@@ -1,32 +1,17 @@
 import { type FormEvent, useState } from "react";
 import { ApiError, register } from "./api";
+import { loadServer, saveServer } from "./storage";
 
-const SERVER_KEY = "orbit.server";
+type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string };
 
-function loadServer(): string {
-  try {
-    return localStorage.getItem(SERVER_KEY) ?? "";
-  } catch {
-    return "";
-  }
+interface RegisterProps {
+  /** Conta criada: quem chama volta ao login com o usuário preenchido. */
+  onRegistered: (username: string) => void;
+  onBack: () => void;
 }
-
-function saveServer(server: string) {
-  try {
-    localStorage.setItem(SERVER_KEY, server);
-  } catch {
-    // Sem localStorage o usuário só precisa redigitar o endereço.
-  }
-}
-
-type Status =
-  | { kind: "idle" }
-  | { kind: "sending" }
-  | { kind: "success"; username: string }
-  | { kind: "error"; message: string };
 
 /** Formulário de auto-cadastro. Ver `docs/specs/001-cadastro-de-usuarios.md`. */
-export function Register() {
+export function Register({ onRegistered, onBack }: RegisterProps) {
   const [server, setServer] = useState(loadServer);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -44,9 +29,9 @@ export function Register() {
     saveServer(server);
     try {
       const user = await register(server, { username, password });
-      setStatus({ kind: "success", username: user.username });
       setPassword("");
       setConfirm("");
+      onRegistered(user.username);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Erro inesperado.";
       setStatus({ kind: "error", message });
@@ -56,7 +41,7 @@ export function Register() {
   const sending = status.kind === "sending";
 
   return (
-    <form className="register" onSubmit={onSubmit}>
+    <form className="auth-form" onSubmit={onSubmit}>
       <h1>Criar conta</h1>
 
       <label>
@@ -112,16 +97,15 @@ export function Register() {
         {sending ? "Criando..." : "Criar conta"}
       </button>
 
-      {status.kind === "success" && (
-        <p className="success" role="status">
-          Conta <strong>{status.username}</strong> criada.
-        </p>
-      )}
       {status.kind === "error" && (
         <p className="error" role="alert">
           {status.message}
         </p>
       )}
+
+      <button type="button" className="link" onClick={onBack}>
+        Voltar para o login
+      </button>
     </form>
   );
 }
