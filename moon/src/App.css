@@ -19,3 +19,35 @@ body {
 .version {
   color: #8a8aa3;
 }
+
+.register {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 320px;
+}
+
+.register h1 {
+  margin: 0 0 8px;
+}
+
+.register label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.register input,
+.register button {
+  padding: 8px;
+  font: inherit;
+}
+
+.register .success {
+  color: #6fd38a;
+}
+
+.register .error {
+  color: #f07178;
+}

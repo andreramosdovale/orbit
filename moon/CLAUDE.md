@@ -8,6 +8,7 @@ App do Orbit que os amigos instalam. Tauri 2: a UI fica em Vite + React + TypeSc
 src/                     # front (React)
 ├── main.tsx
 ├── App.tsx
+├── features/auth/       # api.ts (fetch no sun) + Register.tsx (form de cadastro)
 └── bindings.ts          # GERADO pelo Rust: nunca edite
 src-tauri/               # core Rust
 ├── src/lib.rs           # comandos + specta_builder() + run()
@@ -37,6 +38,7 @@ Tipos do protocolo (`orbit_shared`) que o front usa direto, como as mensagens do
 - React 19 com componentes funcionais e hooks. TypeScript `strict`.
 - O front fala direto com o `sun` (HTTP/WebSocket) e com o LiveKit (SDK JS) a partir do webview. O core Rust fica para o que o webview não consegue fazer bem (captura nativa, APIs do Windows).
 - Lint e formatação: Biome (`npm run lint`, `npm run format`). O hook formata automaticamente após cada edição.
+- **Chamadas ao `sun`:** em `features/<domínio>/api.ts`, tipadas com os tipos de `bindings.ts`. Erros viram `ApiError` (`code` do `ApiErrorBody` ou `network`); a UI mostra o `message`.
 - Estrutura conforme crescer: `src/features/<domínio>/` (componentes + hooks + chamadas), `src/components/` para componentes genéricos.
 
 ## Core Rust: padrões
