@@ -32,6 +32,8 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 
 Mensagens inválidas são ignoradas (com log `warn` no servidor) e a conexão continua aberta.
 
+Mensagens (e frames) acima de **64 KiB** (`sun::MAX_MESSAGE_SIZE`) fazem o servidor encerrar a conexão.
+
 ## Comandos Tauri (front → core Rust do `moon`)
 
 Gerados em `moon/src/bindings.ts` como `commands.*`.
