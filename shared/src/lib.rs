@@ -39,6 +39,24 @@ pub struct User {
     pub username: String,
 }
 
+/// Corpo de `POST /auth/login`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct LoginRequest {
+    /// Convertido para minúsculas pelo servidor antes da busca.
+    pub username: String,
+    pub password: String,
+}
+
+/// Resposta de `POST /auth/login`: o JWT e o usuário logado.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct LoginResponse {
+    /// JWT HS256, válido por 30 dias. Vai em `Authorization: Bearer <token>`.
+    pub token: String,
+    pub user: User,
+}
+
 /// Corpo de toda resposta de erro da API REST.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -61,6 +79,8 @@ pub enum ApiErrorCode {
     InvalidPassword,
     /// Nome de usuário já cadastrado.
     UsernameTaken,
+    /// Usuário ou senha incorretos no login (não diz qual dos dois).
+    InvalidCredentials,
     /// Erro interno do servidor. Detalhes só no log do `sun`.
     Internal,
 }
@@ -108,6 +128,41 @@ mod tests {
         assert_eq!(
             serde_json::to_value(user).unwrap(),
             json!({ "id": 1, "username": "fulano" })
+        );
+    }
+
+    #[test]
+    fn login_request_wire_format() {
+        let req = LoginRequest {
+            username: "fulano".into(),
+            password: "segredo123".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(req).unwrap(),
+            json!({ "username": "fulano", "password": "segredo123" })
+        );
+    }
+
+    #[test]
+    fn login_response_wire_format() {
+        let res = LoginResponse {
+            token: "a.b.c".into(),
+            user: User {
+                id: 1,
+                username: "fulano".into(),
+            },
+        };
+        assert_eq!(
+            serde_json::to_value(res).unwrap(),
+            json!({ "token": "a.b.c", "user": { "id": 1, "username": "fulano" } })
+        );
+    }
+
+    #[test]
+    fn invalid_credentials_wire_format() {
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::InvalidCredentials).unwrap(),
+            json!("invalid_credentials")
         );
     }
 

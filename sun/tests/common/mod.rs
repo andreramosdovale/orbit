@@ -14,7 +14,7 @@ use http_body_util::BodyExt;
 use orbit_shared::{ClientMessage, ServerMessage};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use sun::AppState;
+use sun::{AppState, JwtKeys};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::Message;
@@ -31,7 +31,10 @@ pub async fn state() -> anyhow::Result<AppState> {
     let db = sun::db::connect_in_memory()
         .await
         .context("abrindo SQLite em memória")?;
-    Ok(AppState { db })
+    let jwt = JwtKeys::load_or_create(&db)
+        .await
+        .context("carregando o segredo do JWT")?;
+    Ok(AppState { db, jwt })
 }
 
 /// Resposta HTTP já lida: status + corpo.
