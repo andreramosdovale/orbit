@@ -26,7 +26,7 @@ async fn health_returns_ok() -> anyhow::Result<()> {
 #[tokio::test]
 async fn ws_ping_gets_pong() -> anyhow::Result<()> {
     let server = TestServer::start().await?;
-    let mut ws = server.connect_ws().await?;
+    let mut ws = server.connect_ws_authed().await?;
 
     send(&mut ws, &ClientMessage::Ping).await?;
     assert_eq!(recv(&mut ws).await?, ServerMessage::Pong);
@@ -36,7 +36,7 @@ async fn ws_ping_gets_pong() -> anyhow::Result<()> {
 #[tokio::test]
 async fn ws_invalid_message_keeps_connection() -> anyhow::Result<()> {
     let server = TestServer::start().await?;
-    let mut ws = server.connect_ws().await?;
+    let mut ws = server.connect_ws_authed().await?;
 
     ws.send(Message::text("isto não é json")).await?;
     ws.send(Message::text(r#"{"type":"nao_existe"}"#)).await?;
@@ -50,7 +50,7 @@ async fn ws_invalid_message_keeps_connection() -> anyhow::Result<()> {
 #[tokio::test]
 async fn ws_oversized_message_closes_connection() -> anyhow::Result<()> {
     let server = TestServer::start().await?;
-    let mut ws = server.connect_ws().await?;
+    let mut ws = server.connect_ws_authed().await?;
 
     let huge = "a".repeat(sun::MAX_MESSAGE_SIZE + 1);
     // O envio pode falhar se o servidor fechar no meio; o que importa é o fechamento abaixo.

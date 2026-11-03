@@ -8,6 +8,7 @@ mod ws;
 
 use std::future::Future;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, header};
@@ -17,7 +18,7 @@ use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
 pub use auth::{Claims, JwtError, JwtKeys, SecretError, now};
-pub use ws::MAX_MESSAGE_SIZE;
+pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT};
 
 /// Tamanho máximo do corpo de uma requisição HTTP. A API só recebe JSON pequeno.
 pub const MAX_BODY_SIZE: usize = 16 * 1024;
@@ -35,6 +36,8 @@ pub struct AppState {
     pub db: SqlitePool,
     /// Chaves do JWT, carregadas do banco quando o servidor sobe (ADR 0008).
     pub jwt: JwtKeys,
+    /// Prazo para autenticar no `/ws`. Em produção, [`WS_AUTH_TIMEOUT`]; os testes usam um valor curto.
+    pub ws_auth_timeout: Duration,
 }
 
 /// Monta o router com todas as rotas do servidor.

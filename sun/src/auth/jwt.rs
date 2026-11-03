@@ -1,5 +1,6 @@
 //! JWT HS256 do login (ADR 0008): segredo guardado no SQLite, token válido por 30 dias.
 
+use std::num::ParseIntError;
 use std::time::Duration;
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -25,6 +26,16 @@ pub struct Claims {
     pub iat: u64,
     /// Expiração (Unix, segundos).
     pub exp: u64,
+}
+
+impl Claims {
+    /// O usuário que o token identifica. Falha se `sub` não for um id.
+    pub fn into_user(self) -> Result<User, ParseIntError> {
+        Ok(User {
+            id: self.sub.parse()?,
+            username: self.username,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -154,6 +165,28 @@ mod tests {
         assert_eq!(claims.username, "fulano");
         assert_eq!(claims.iat, NOW);
         assert_eq!(claims.exp, NOW + 30 * 24 * 60 * 60);
+    }
+
+    #[test]
+    fn claims_convert_to_user() {
+        let keys = keys(1);
+        let token = keys.issue(&fulano(), NOW).unwrap();
+
+        let user = keys.verify(&token, NOW).unwrap().into_user().unwrap();
+
+        assert_eq!(user, fulano());
+    }
+
+    #[test]
+    fn claims_with_non_numeric_sub_do_not_convert() {
+        let claims = Claims {
+            sub: "nao-e-id".into(),
+            username: "fulano".into(),
+            iat: NOW,
+            exp: NOW + 1,
+        };
+
+        assert!(claims.into_user().is_err());
     }
 
     #[test]

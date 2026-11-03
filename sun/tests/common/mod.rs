@@ -11,7 +11,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
-use orbit_shared::{ClientMessage, ServerMessage};
+use orbit_shared::{ClientMessage, ServerMessage, User};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sun::{AppState, JwtKeys};
@@ -34,7 +34,11 @@ pub async fn state() -> anyhow::Result<AppState> {
     let jwt = JwtKeys::load_or_create(&db)
         .await
         .context("carregando o segredo do JWT")?;
-    Ok(AppState { db, jwt })
+    Ok(AppState {
+        db,
+        jwt,
+        ws_auth_timeout: sun::WS_AUTH_TIMEOUT,
+    })
 }
 
 /// Resposta HTTP já lida: status + corpo.
@@ -86,17 +90,27 @@ pub async fn send_request(state: &AppState, req: Request<Body>) -> anyhow::Resul
 /// Servidor real numa porta efêmera. É abortado quando sai de escopo.
 pub struct TestServer {
     pub addr: SocketAddr,
+    /// O mesmo estado do servidor: mesmo banco e mesmas chaves do JWT.
+    pub state: AppState,
     handle: JoinHandle<std::io::Result<()>>,
 }
 
 impl TestServer {
     pub async fn start() -> anyhow::Result<Self> {
+        Self::start_with(state().await?).await
+    }
+
+    pub async fn start_with(state: AppState) -> anyhow::Result<Self> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .context("abrindo porta efêmera")?;
         let addr = listener.local_addr().context("lendo endereço local")?;
-        let handle = tokio::spawn(sun::serve(listener, state().await?, std::future::pending()));
-        Ok(Self { addr, handle })
+        let handle = tokio::spawn(sun::serve(listener, state.clone(), std::future::pending()));
+        Ok(Self {
+            addr,
+            state,
+            handle,
+        })
     }
 
     pub async fn connect_ws(&self) -> anyhow::Result<Ws> {
@@ -109,6 +123,25 @@ impl TestServer {
             .context("timeout conectando no WebSocket")?
             .with_context(|| format!("conectando em {url}"))?;
         Ok(ws)
+    }
+
+    /// Conexão já autenticada como um usuário de teste.
+    pub async fn connect_ws_authed(&self) -> anyhow::Result<Ws> {
+        let user = User {
+            id: 1,
+            username: "fulano".into(),
+        };
+        let token = self
+            .state
+            .jwt
+            .issue(&user, sun::now())
+            .context("emitindo token de teste")?;
+        let mut ws = self.connect_ws().await?;
+        send(&mut ws, &ClientMessage::Auth { token }).await?;
+        match recv(&mut ws).await? {
+            ServerMessage::AuthOk { .. } => Ok(ws),
+            other => bail!("esperava auth_ok, veio {other:?}"),
+        }
     }
 }
 
@@ -136,4 +169,20 @@ pub async fn recv(ws: &mut Ws) -> anyhow::Result<ServerMessage> {
         .to_text()
         .with_context(|| format!("esperava texto, veio {msg:?}"))?;
     serde_json::from_str(text).with_context(|| format!("resposta inválida: {text}"))
+}
+
+/// Espera o servidor fechar a conexão e devolve o código do frame de Close.
+pub async fn recv_close_code(ws: &mut Ws) -> anyhow::Result<u16> {
+    loop {
+        let msg = tokio::time::timeout(TIMEOUT, ws.next())
+            .await
+            .context("timeout esperando o fechamento")?
+            .context("conexão acabou sem frame de Close")?
+            .context("erro lendo do WebSocket")?;
+        match msg {
+            Message::Close(Some(frame)) => return Ok(u16::from(frame.code)),
+            Message::Ping(_) | Message::Pong(_) => continue,
+            other => bail!("esperava Close com código, veio {other:?}"),
+        }
+    }
 }

@@ -32,7 +32,9 @@ export type ApiErrorCode =
 "internal";
 
 /**  Mensagens enviadas pelo cliente via WebSocket (`/ws`). */
-export type ClientMessage = { type: "ping" };
+export type ClientMessage = 
+/**  Primeira mensagem da conexão: o JWT recebido no login. */
+{ type: "auth"; token: string } | { type: "ping" };
 
 /**  Corpo de `POST /auth/login`. */
 export type LoginRequest = {
@@ -43,7 +45,7 @@ export type LoginRequest = {
 
 /**  Resposta de `POST /auth/login`: o JWT e o usuário logado. */
 export type LoginResponse = {
-	/**  JWT HS256, válido por 30 dias. Vai em `Authorization: Bearer <token>`. */
+	/**  JWT HS256, válido por 30 dias. No `/ws`, vai na mensagem `auth`; no REST, em `Authorization: Bearer <token>`. */
 	token: string,
 	user: User,
 };
@@ -57,7 +59,11 @@ export type RegisterRequest = {
 };
 
 /**  Mensagens enviadas pelo servidor via WebSocket (`/ws`). */
-export type ServerMessage = { type: "pong" };
+export type ServerMessage = 
+/**  Token aceito: a conexão está autenticada como `user`. */
+{ type: "auth_ok"; user: User } | 
+/**  Autenticação recusada. O servidor fecha a conexão com o código 1008 logo depois. */
+{ type: "auth_error" } | { type: "pong" };
 
 /**  Usuário público. Nunca contém senha nem hash. */
 export type User = {

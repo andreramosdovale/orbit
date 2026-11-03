@@ -15,12 +15,13 @@ src/
 │   ├── register.rs  # validação, hash argon2id, INSERT. Erro de domínio: RegisterError
 │   ├── login.rs     # confere senha (argon2) e emite o token. Erro de domínio: LoginError
 │   └── jwt.rs       # JwtKeys: segredo no SQLite (tabela secrets), issue/verify (ADR 0008)
-└── ws.rs            # WebSocket /ws: recebe ClientMessage, responde ServerMessage
+└── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), depois recebe ClientMessage e responde ServerMessage
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
-├── api.rs           # /health e WebSocket
+├── api.rs           # /health e WebSocket já autenticado
 ├── auth.rs          # cadastro, login e persistência do segredo do JWT
-└── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer, send/recv
+├── ws_auth.rs       # autenticação do WebSocket
+└── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send/recv
 ```
 
 Conforme o servidor crescer, organize **por domínio** (`auth/`, `chat/`, `voice/`), cada um com seu `mod.rs` expondo as rotas (`fn routes() -> Router<AppState>`) e montado em `lib.rs`.
@@ -30,7 +31,7 @@ Conforme o servidor crescer, organize **por domínio** (`auth/`, `chat/`, `voice
 - **Testável sem rede:** toda rota HTTP deve ser testável via `sun::app(state).oneshot(request)` (`tower::ServiceExt`), com `common::state()` (SQLite em memória). Só o WebSocket precisa de porta real (`127.0.0.1:0`). Siga os exemplos em `tests/auth.rs` e `tests/api.rs`.
 - **Estado compartilhado** (pool do banco, config, conexões WS): campos da struct `AppState` (`Clone`), passada via `Router::with_state`.
 - **Banco:** mudança de schema = arquivo novo em `migrations/` (`NNNN_descricao.sql`). Nunca edite uma migration já commitada.
-- **Mensagens do WebSocket:** sempre os tipos de `orbit_shared`. Nunca monte JSON à mão. Mensagem inválida gera `tracing::warn!` e é ignorada, sem derrubar a conexão.
+- **Mensagens do WebSocket:** sempre os tipos de `orbit_shared`. Nunca monte JSON à mão. Depois de autenticar, mensagem inválida gera `tracing::warn!` e é ignorada, sem derrubar a conexão. Antes de autenticar, ela recebe `auth_error` e a conexão fecha (ADR 0009).
 - **Config via variáveis de ambiente**, com padrão sensato em `main.rs` (`SUN_ADDR`, padrão `0.0.0.0:7700`). Documente cada variável nova aqui.
 
 ## Tratamento de erros
@@ -55,7 +56,7 @@ Se uma invariante realmente não pode falhar, prefira reestruturar o código par
 - **Handlers HTTP:** retornam `Result<T, ApiError>`. `ApiError` implementa `IntoResponse` e `From<ChatError>` etc., mapeando:
   - entrada inválida → `400`, não autenticado → `401`, sem permissão → `403`, não encontrado → `404`, conflito → `409`;
   - erro interno → `500` com mensagem **genérica**. A causa real vai para `tracing::error!(error = ?err, ...)`, nunca para o corpo da resposta.
-- **WebSocket:** mensagem inválida do cliente → `tracing::warn!` e continua. Erro de envio/recebimento no socket → `tracing::debug!` e encerra o loop da conexão. Nunca derrube o servidor por causa de um cliente.
+- **WebSocket:** depois de autenticar, mensagem inválida do cliente → `tracing::warn!` e continua (logue só a categoria do erro do serde: o texto dele pode repetir trechos da mensagem, inclusive um token). Erro de envio/recebimento no socket → `tracing::debug!` e encerra o loop da conexão. Nunca derrube o servidor por causa de um cliente.
 - **Tasks (`tokio::spawn`):** a função da task retorna `Result` e o erro é logado dentro dela; um `JoinHandle` descartado engole o erro.
 
 ### Em testes

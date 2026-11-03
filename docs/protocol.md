@@ -14,7 +14,7 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 | Método | Rota | Auth | Resposta | Descrição |
 |---|---|---|---|---|
 | `GET` | `/health` | não | `200 ok` (texto) | Verificação de vida |
-| `GET` | `/ws` | não (Fase 1: JWT) | upgrade WebSocket | Canal de tempo real |
+| `GET` | `/ws` | JWT na 1ª mensagem | upgrade WebSocket | Canal de tempo real ([spec 003](specs/003-ws-autenticado.md)) |
 | `POST` | `/auth/register` | não | `201` + `User` | Auto-cadastro ([spec 001](specs/001-cadastro-de-usuarios.md)) |
 | `POST` | `/auth/login` | não | `200` + `LoginResponse` | Login, devolve um JWT ([spec 002](specs/002-login-jwt.md)) |
 
@@ -52,7 +52,7 @@ Sucesso: `200` com `LoginResponse`:
 
 ### Autenticação (JWT)
 
-O token é um JWT HS256 ([ADR 0008](decisions/0008-jwt-com-segredo-no-sqlite.md)) que o cliente envia em `Authorization: Bearer <token>`. Nenhuma rota exige o token ainda; o `/ws` passa a exigir na próxima spec.
+O token é um JWT HS256 ([ADR 0008](decisions/0008-jwt-com-segredo-no-sqlite.md)). No `/ws`, ele vai na mensagem `auth` ([ADR 0009](decisions/0009-autenticacao-do-ws-na-primeira-mensagem.md)), porque o WebSocket do webview não permite definir cabeçalhos. Nas rotas REST que passarem a exigir token, ele vai em `Authorization: Bearer <token>`; nenhuma exige ainda.
 
 | Claim | Valor |
 |---|---|
@@ -76,21 +76,33 @@ Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "me
 
 ## WebSocket (`/ws`)
 
+### Autenticação
+
+O upgrade não exige nada, mas o cliente precisa enviar `auth` como primeira mensagem, em até **10 segundos** (`sun::WS_AUTH_TIMEOUT`).
+
+- **Token válido:** o servidor responde `auth_ok` e a conexão passa a aceitar o resto do protocolo.
+- **Qualquer outro caso:** o servidor responde `auth_error` e fecha com o código **1008**, sem dizer o motivo. Isso inclui token inválido ou expirado, prazo estourado, outro tipo de mensagem, JSON malformado e frame binário.
+
+O token só é checado aqui: uma conexão aberta não cai quando ele expira.
+
 ### Cliente → servidor (`ClientMessage`)
 
 | `type` | Campos | Resposta |
 |---|---|---|
+| `auth` | `token` (JWT) | `auth_ok` ou `auth_error` + fechamento |
 | `ping` | — | `pong` |
 
 ### Servidor → cliente (`ServerMessage`)
 
 | `type` | Campos | Quando |
 |---|---|---|
+| `auth_ok` | `user` (`User`) | Token aceito |
+| `auth_error` | — | Autenticação recusada; a conexão fecha em seguida |
 | `pong` | — | Resposta a `ping` |
 
-Mensagens inválidas são ignoradas (com log `warn` no servidor) e a conexão continua aberta.
+Depois de autenticar, mensagens inválidas são ignoradas (com log `warn` no servidor) e a conexão continua aberta. Um segundo `auth` também é ignorado: não troca o usuário nem recebe resposta.
 
-Mensagens (e frames) acima de **64 KiB** (`sun::MAX_MESSAGE_SIZE`) fazem o servidor encerrar a conexão.
+Mensagens (e frames) acima de **64 KiB** (`sun::MAX_MESSAGE_SIZE`) fazem o servidor encerrar a conexão, antes ou depois de autenticar.
 
 ## Comandos Tauri (front → core Rust do `moon`)
 
