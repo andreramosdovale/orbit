@@ -28,6 +28,8 @@ pub enum ApiError {
     ChannelNameTaken,
     #[error("canal inexistente")]
     UnknownChannel,
+    #[error("voz não configurada")]
+    VoiceUnavailable,
     /// A causa só vai para o log; o cliente recebe uma mensagem genérica.
     #[error("erro interno")]
     Internal(#[source] BoxError),
@@ -87,6 +89,11 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 ApiErrorCode::UnknownChannel,
                 "Esse canal não existe mais.".to_owned(),
+            ),
+            Self::VoiceUnavailable => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ApiErrorCode::VoiceUnavailable,
+                "A voz não está configurada neste servidor.".to_owned(),
             ),
             Self::Internal(source) => {
                 tracing::error!(error = ?source, "erro interno ao processar requisição");

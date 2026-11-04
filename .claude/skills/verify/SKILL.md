@@ -14,6 +14,7 @@ Rode na raiz do repositório, nesta ordem, e **pare no primeiro passo que falhar
 5. `git status --short moon/src/bindings.ts`: se mudou, os tipos do front mudaram. Rode `npm run build` de novo para checar se o front ainda compila, e inclua o arquivo no commit.
 6. `cd moon && npm run check`: Biome (lint + formatação).
 7. `cd moon && npm test`: testes de front (Vitest).
+8. `powershell -ExecutionPolicy Bypass -File scripts/tests/setup-livekit.tests.ps1`: scripts do host, sem rede nem firewall.
 
 ## Problemas conhecidos
 

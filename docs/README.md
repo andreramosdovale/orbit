@@ -13,3 +13,4 @@
 - **A doc acompanha o código no mesmo commit.** Mudou o protocolo? Atualize `protocol.md`. Mudou a arquitetura? Atualize `architecture.md` e, se for uma decisão, escreva um ADR.
 - **Funcionalidade nova começa por uma spec** (`/spec`), com critérios de aceite verificáveis.
 - **Decisões não se rediscutem sem um ADR novo** (`/adr`) que substitua o anterior.
+- [`host-setup.md`](host-setup.md): como o host instala e sobe o LiveKit.

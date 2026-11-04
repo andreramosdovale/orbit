@@ -20,7 +20,7 @@ pub enum ChannelError {
 
 /// Remove espaços nas pontas e converte para minúsculas. `None` se o resultado
 /// não tiver de 1 a 32 letras (com acento), números, `-` ou `_`.
-fn normalize_name(name: &str) -> Option<String> {
+pub fn normalize_name(name: &str) -> Option<String> {
     let name = name.trim().to_lowercase();
     let valid_chars = name
         .chars()

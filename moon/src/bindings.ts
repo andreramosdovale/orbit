@@ -36,6 +36,8 @@ export type ApiErrorCode =
 "channel_name_taken" | 
 /**  O canal pedido não existe. */
 "unknown_channel" | 
+/**  O servidor subiu sem as chaves do LiveKit. */
+"voice_unavailable" | 
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
 
@@ -59,6 +61,11 @@ export type ClientMessage =
 /**  Corpo de `POST /channels`. */
 export type CreateChannelRequest = {
 	/**  1 a 32 letras (com acento), números, `-` ou `_`. O servidor remove espaços nas pontas e converte para minúsculas. */
+	name: string,
+};
+
+/**  Corpo de `POST /voice-channels`. */
+export type CreateVoiceChannelRequest = {
 	name: string,
 };
 
@@ -118,7 +125,9 @@ export type ServerMessage =
 /**  Alguém ficou online, para todas as conexões. */
 { type: "user_online"; user: User } | 
 /**  Alguém ficou offline, para todas as conexões. */
-{ type: "user_offline"; user: User };
+{ type: "user_offline"; user: User } | 
+/**  Sala de voz nova, enviada a todas as conexões. */
+{ type: "voice_channel_created"; channel: VoiceChannel };
 
 /**  Canal de texto. */
 export type TextChannel = {
@@ -136,5 +145,19 @@ export type User = {
 export type UserPresence = {
 	user: User,
 	online: boolean,
+};
+
+/**  Sala de voz. */
+export type VoiceChannel = {
+	id: number,
+	name: string,
+};
+
+/**  O necessário para entrar em uma sala no LiveKit. */
+export type VoiceJoin = {
+	/**  Token de acesso, válido só para esta sala. */
+	token: string,
+	/**  Porta do LiveKit no mesmo host do `sun`. */
+	livekit_port: number,
 };
 

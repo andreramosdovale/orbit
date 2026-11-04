@@ -1,6 +1,6 @@
 //! Chat: canais e mensagens de texto.
 
-mod channels;
+pub mod channels;
 pub mod messages;
 
 use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};

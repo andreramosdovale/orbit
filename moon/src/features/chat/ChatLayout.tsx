@@ -13,8 +13,10 @@ import type {
   ServerMessage,
   TextChannel,
   UserPresence,
+  VoiceChannel,
 } from "../../bindings";
 import type { Session } from "../auth/session";
+import { VoiceSection } from "../voice/VoiceSection";
 import { createChannel, listChannels } from "./api";
 import { ChannelMessages } from "./ChannelMessages";
 import { Composer } from "./Composer";
@@ -101,6 +103,7 @@ function ChatScreen({
   const [liveMessages, setLiveMessages] = useState<Record<number, ChatMessage[]>>({});
   // Vem só do WebSocket, então também fica fora do cache.
   const [members, setMembers] = useState<UserPresence[] | null>(null);
+  const [announcedVoice, setAnnouncedVoice] = useState<VoiceChannel[]>([]);
   const [newName, setNewName] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
 
@@ -147,6 +150,11 @@ function ChatScreen({
           break;
         case "message_rejected":
           setSendError(REJECT_MESSAGES[msg.reason]);
+          break;
+        case "voice_channel_created":
+          setAnnouncedVoice((current) =>
+            current.some((c) => c.id === msg.channel.id) ? current : [...current, msg.channel],
+          );
           break;
         case "presence_snapshot":
           setMembers(msg.users);
@@ -230,6 +238,13 @@ function ChatScreen({
             </form>
           </>
         )}
+
+        <VoiceSection
+          server={server}
+          token={token}
+          announced={announcedVoice}
+          onSessionExpired={onSessionExpired}
+        />
 
         <button type="button" className="logout" onClick={onLogout}>
           Sair

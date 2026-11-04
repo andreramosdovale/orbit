@@ -1,6 +1,6 @@
 # 0002. LiveKit como SFU para voz e vídeo
 
-- **Status:** Aceita
+- **Status:** Aceita, com a emissão de tokens alterada pelo [ADR 0014](0014-livekit-no-host.md)
 - **Data:** 2026-11-03
 
 ## Contexto

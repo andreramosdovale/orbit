@@ -20,6 +20,9 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 | `GET` | `/channels` | `Bearer` | `200` + `TextChannel[]` | Lista os canais de texto ([spec 005](specs/005-canais-de-texto.md)) |
 | `POST` | `/channels` | `Bearer` | `201` + `TextChannel` | Cria um canal de texto ([spec 005](specs/005-canais-de-texto.md)) |
 | `GET` | `/channels/{id}/messages` | `Bearer` | `200` + `MessagePage` | Histórico de um canal, em páginas ([spec 007](specs/007-historico-paginado.md)) |
+| `GET` | `/voice-channels` | `Bearer` | `200` + `VoiceChannel[]` | Lista as salas de voz ([spec 010](specs/010-salas-de-voz.md)) |
+| `POST` | `/voice-channels` | `Bearer` | `201` + `VoiceChannel` | Cria uma sala de voz |
+| `POST` | `/voice-channels/{id}/token` | `Bearer` | `200` + `VoiceJoin` | Token para entrar na sala pelo LiveKit |
 
 Corpos HTTP acima de **16 KiB** (`sun::MAX_BODY_SIZE`) são recusados. O CORS só libera as origens do `moon`: as do build (`sun::ALLOWED_ORIGINS`) e `http://localhost` nas portas de dev (`sun::DEV_PORTS`, 1420 a 1439).
 
@@ -104,6 +107,20 @@ Parâmetro opcional `before` (id de mensagem). Sucesso: `200` com `MessagePage`,
 - Canal sem mensagens: lista vazia e `has_more: false`.
 - `id` do canal ou `before` que não sejam um inteiro de 0 a 2³²−1 recebem `400 invalid_request`.
 
+### Salas de voz
+
+`GET` e `POST /voice-channels` funcionam como `/channels`, com as mesmas regras de nome, e os nomes não conflitam entre texto e voz. Um servidor novo já vem com a sala `geral`.
+
+`POST /voice-channels/{id}/token`, sem corpo, devolve `VoiceJoin`:
+
+```json
+{ "token": "<jwt>", "livekit_port": 7880 }
+```
+
+- O `moon` monta o endereço como `ws://<host do servidor>:<livekit_port>`, porque o `sun` não sabe por qual endereço cada amigo o alcança.
+- O token é um JWT HS256 assinado com o segredo do LiveKit ([ADR 0014](decisions/0014-livekit-no-host.md)) e dura 10 minutos. Claims: `iss` (chave), `sub` (id do usuário), `name` (`username`), `nbf`, `exp` e `video`, com `room` (`voice-<id>`), `roomJoin`, `canSubscribe` e `canPublish` ligados, `canPublishData` desligado e `canPublishSources: ["microphone"]`.
+- Sem as chaves do LiveKit, a resposta é `503 voice_unavailable`, e o resto do servidor funciona.
+
 ### Erros da API REST
 
 Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "message": "<texto para o usuário>" }`.
@@ -114,7 +131,8 @@ Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "me
 | `400` | `invalid_username` | Usuário fora das regras |
 | `400` | `invalid_password` | Senha fora das regras |
 | `400` | `invalid_channel_name` | Nome de canal fora das regras |
-| `404` | `unknown_channel` | O canal pedido não existe |
+| `404` | `unknown_channel` | O canal ou a sala pedida não existe |
+| `503` | `voice_unavailable` | O servidor subiu sem as chaves do LiveKit |
 | `401` | `invalid_credentials` | Login com usuário ou senha incorretos |
 | `401` | `unauthorized` | Token ausente, inválido ou expirado em rota protegida |
 | `409` | `username_taken` | Usuário já existe |
@@ -153,6 +171,7 @@ O token só é checado aqui: uma conexão aberta não cai quando ele expira.
 | `presence_snapshot` | `users` (`UserPresence[]`) | Todas as contas e o estado de cada uma, só para a conexão que acabou de entrar |
 | `user_online` | `user` (`User`) | Alguém ficou online, para todas as conexões |
 | `user_offline` | `user` (`User`) | Alguém ficou offline, para todas as conexões |
+| `voice_channel_created` | `channel` (`VoiceChannel`) | Sala de voz nova, para todas as conexões |
 
 Depois de autenticar, mensagens inválidas são ignoradas (com log `warn` no servidor) e a conexão continua aberta. Um segundo `auth` também é ignorado: não troca o usuário nem recebe resposta.
 

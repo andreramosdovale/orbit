@@ -6,6 +6,7 @@ mod chat;
 pub mod db;
 mod error;
 mod presence;
+mod voice;
 mod ws;
 
 use std::future::Future;
@@ -25,6 +26,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use presence::Presence;
 
 pub use auth::{Claims, JwtError, JwtKeys, SecretError, now};
+pub use voice::{LiveKitConfig, LiveKitConfigError};
 pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT, WS_IDLE_TIMEOUT, WS_PING_INTERVAL};
 
 /// Quantas mensagens o `hub` guarda para quem está atrasado. Quem passa disso é desconectado.
@@ -59,6 +61,8 @@ pub struct AppState {
     pub ws_idle_timeout: Duration,
     /// Quem está conectado agora.
     presence: Presence,
+    /// Chaves do LiveKit. Sem elas, a voz fica indisponível e o resto funciona.
+    pub livekit: Option<LiveKitConfig>,
 }
 
 impl AppState {
@@ -71,6 +75,7 @@ impl AppState {
             ws_ping_interval: WS_PING_INTERVAL,
             ws_idle_timeout: WS_IDLE_TIMEOUT,
             presence: Presence::new(hub.clone()),
+            livekit: None,
             hub,
         }
     }
@@ -91,6 +96,7 @@ pub fn app(state: AppState) -> Router {
         .route("/ws", get(ws::upgrade))
         .merge(auth::routes())
         .merge(chat::routes())
+        .merge(voice::routes())
         .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
         .layer(cors())
         .with_state(state)
