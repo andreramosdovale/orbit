@@ -1,5 +1,5 @@
+import { normalizeServerUrl } from "../../api/http";
 import type { ClientMessage, ServerMessage, User } from "../../bindings";
-import { normalizeServerUrl } from "./api";
 
 /**
  * Tempo máximo esperando a resposta da autenticação. É maior que os 10 segundos

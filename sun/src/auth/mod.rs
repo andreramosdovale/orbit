@@ -1,5 +1,6 @@
 //! Contas de usuário: cadastro, login e JWT.
 
+mod extractor;
 mod jwt;
 mod login;
 mod register;
@@ -14,6 +15,7 @@ use orbit_shared::{LoginRequest, LoginResponse, RegisterRequest, User};
 use crate::AppState;
 use crate::error::ApiError;
 
+pub use extractor::AuthUser;
 pub use jwt::{Claims, JwtError, JwtKeys, SecretError, now};
 use login::LoginError;
 use register::RegisterError;

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, login, normalizeServerUrl } from "./api";
+import { ApiError } from "../../api/http";
+import { login } from "./api";
 
 const REQ = { username: "fulano", password: "senha-boa-123" };
 
@@ -9,16 +10,6 @@ function jsonResponse(status: number, body: unknown): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
-
-describe("normalizeServerUrl", () => {
-  it("remove espaços e barras finais", () => {
-    expect(normalizeServerUrl("  http://host:7700//  ")).toBe("http://host:7700");
-  });
-
-  it("mantém um endereço já normalizado", () => {
-    expect(normalizeServerUrl("http://host:7700")).toBe("http://host:7700");
-  });
-});
 
 describe("login", () => {
   it("envia POST /auth/login e resolve com LoginResponse", async () => {

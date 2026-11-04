@@ -319,23 +319,9 @@ async fn login_response_never_contains_password() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Remove o arquivo de banco temporário mesmo se o teste falhar no meio.
-struct TempDb(std::path::PathBuf);
-
-impl Drop for TempDb {
-    fn drop(&mut self) {
-        // Limpeza de teste: se o arquivo já não existir, não há o que fazer.
-        let _ = std::fs::remove_file(&self.0);
-    }
-}
-
 #[tokio::test]
 async fn jwt_secret_persists() -> anyhow::Result<()> {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_nanos();
-    let path =
-        TempDb(std::env::temp_dir().join(format!("orbit-test-{}-{nanos}.db", std::process::id())));
+    let path = common::TempDb::new()?;
     let user = User {
         id: 1,
         username: "fulano".into(),

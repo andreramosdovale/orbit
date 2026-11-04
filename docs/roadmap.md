@@ -12,7 +12,7 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 - [x] Harness: `.claude/settings.json`, hook de formatação, skills `/verify`, `/spec`, `/adr`
 - [x] CI no GitHub Actions (Windows)
 
-## Fase 1: Contas e autenticação
+## Fase 1: Contas e autenticação ✅
 
 - [x] SQLite com migrations (`sqlx`), arquivo `orbit.db` ao lado do executável
 - [x] Auto-cadastro com usuário + senha (argon2), sem convite ([spec 001](specs/001-cadastro-de-usuarios.md), [ADR 0007](decisions/0007-auto-cadastro-sem-convite.md))
@@ -23,7 +23,7 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 
 ## Fase 2: Chat de texto
 
-- [ ] Canais de texto (criar/listar)
+- [x] Canais de texto (criar/listar) ([spec 005](specs/005-canais-de-texto.md))
 - [ ] Mensagens em tempo real via WebSocket, persistidas
 - [ ] Histórico paginado
 - [ ] Presença (online/offline)

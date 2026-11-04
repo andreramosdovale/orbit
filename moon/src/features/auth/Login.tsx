@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
-import { ApiError, login } from "./api";
+import { ApiError } from "../../api/http";
+import { login } from "./api";
 import { loadServer, saveServer } from "./storage";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "error"; message: string };

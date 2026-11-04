@@ -2,6 +2,7 @@
 //! toda a lógica fica aqui para ser testável sem abrir porta.
 
 mod auth;
+mod chat;
 pub mod db;
 mod error;
 mod ws;
@@ -46,6 +47,7 @@ pub fn app(state: AppState) -> Router {
         .route("/health", get(|| async { "ok" }))
         .route("/ws", get(ws::upgrade))
         .merge(auth::routes())
+        .merge(chat::routes())
         .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
         .layer(cors())
         .with_state(state)
@@ -55,7 +57,7 @@ fn cors() -> CorsLayer {
     CorsLayer::new()
         .allow_origin(ALLOWED_ORIGINS.map(HeaderValue::from_static))
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::CONTENT_TYPE])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
 }
 
 /// Serve o [`app`] no `listener` até `shutdown` completar, esperando as

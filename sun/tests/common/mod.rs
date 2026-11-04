@@ -4,7 +4,8 @@
 #![allow(dead_code)]
 
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, bail};
 use axum::body::Body;
@@ -14,6 +15,7 @@ use http_body_util::BodyExt;
 use orbit_shared::{ClientMessage, ServerMessage, User};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use sqlx::SqlitePool;
 use sun::{AppState, JwtKeys};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
@@ -31,6 +33,11 @@ pub async fn state() -> anyhow::Result<AppState> {
     let db = sun::db::connect_in_memory()
         .await
         .context("abrindo SQLite em memória")?;
+    state_with_db(db).await
+}
+
+/// Estado sobre um banco já aberto.
+pub async fn state_with_db(db: SqlitePool) -> anyhow::Result<AppState> {
     let jwt = JwtKeys::load_or_create(&db)
         .await
         .context("carregando o segredo do JWT")?;
@@ -39,6 +46,27 @@ pub async fn state() -> anyhow::Result<AppState> {
         jwt,
         ws_auth_timeout: sun::WS_AUTH_TIMEOUT,
     })
+}
+
+/// Caminho de um banco temporário, removido mesmo se o teste falhar no meio.
+pub struct TempDb(pub PathBuf);
+
+impl TempDb {
+    pub fn new() -> anyhow::Result<Self> {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("lendo o relógio")?
+            .as_nanos();
+        let file = format!("orbit-test-{}-{nanos}.db", std::process::id());
+        Ok(Self(std::env::temp_dir().join(file)))
+    }
+}
+
+impl Drop for TempDb {
+    fn drop(&mut self) {
+        // Limpeza de teste: se o arquivo já não existir, não há o que fazer.
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// Resposta HTTP já lida: status + corpo.

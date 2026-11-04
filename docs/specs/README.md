@@ -8,3 +8,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 | 002 | [Login com usuário + senha (JWT)](002-login-jwt.md) | 1 | Concluída |
 | 003 | [WebSocket `/ws` autenticado](003-ws-autenticado.md) | 1 | Concluída |
 | 004 | [Tela de login no `moon` e testes de front](004-tela-de-login.md) | 1 | Concluída |
+| 005 | [Canais de texto (criar e listar)](005-canais-de-texto.md) | 2 | Concluída |
