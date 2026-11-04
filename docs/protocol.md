@@ -150,6 +150,9 @@ O token só é checado aqui: uma conexão aberta não cai quando ele expira.
 | `new_message` | `message` (`ChatMessage`) | Mensagem nova, para todas as conexões, inclusive a de quem enviou |
 | `message_rejected` | `reason` (`MessageRejectReason`) | Mensagem recusada, só para quem tentou enviar |
 | `channel_created` | `channel` (`TextChannel`) | Canal novo, para todas as conexões |
+| `presence_snapshot` | `users` (`UserPresence[]`) | Todas as contas e o estado de cada uma, só para a conexão que acabou de entrar |
+| `user_online` | `user` (`User`) | Alguém ficou online, para todas as conexões |
+| `user_offline` | `user` (`User`) | Alguém ficou offline, para todas as conexões |
 
 Depois de autenticar, mensagens inválidas são ignoradas (com log `warn` no servidor) e a conexão continua aberta. Um segundo `auth` também é ignorado: não troca o usuário nem recebe resposta.
 
@@ -166,6 +169,21 @@ Depois de autenticar, mensagens inválidas são ignoradas (com log `warn` no ser
 - `reason`: `invalid_content`, `unknown_channel` ou `internal`.
 - Todas as conexões autenticadas recebem as mensagens de todos os canais, na mesma ordem, e o `moon` as separa por `channel_id`. As mensagens ficam guardadas sem limite de tempo ([ADR 0011](decisions/0011-retencao-de-mensagens.md)).
 - Quem fica mais de 256 mensagens atrasado (`sun::HUB_CAPACITY`) é desconectado com o código **1013**. Um envio que não termina em 10 segundos também encerra a conexão.
+
+### Presença
+
+```json
+{ "type": "presence_snapshot", "users": [{ "user": { "id": 1, "username": "fulano" }, "online": true }] }
+{ "type": "user_online", "user": { "id": 2, "username": "ciclano" } }
+{ "type": "user_offline", "user": { "id": 2, "username": "ciclano" } }
+```
+
+- Logo depois do `auth_ok`, a conexão recebe `presence_snapshot`, antes de qualquer outra mensagem publicada.
+- Uma pessoa está online enquanto tiver pelo menos uma conexão autenticada. Só a primeira conexão anuncia `user_online`, e só o fechamento da última anuncia `user_offline`.
+- `user_online` também chega a quem acabou de entrar. Um estado já conhecido não muda nada. Uma conta desconhecida entra na lista por esse anúncio.
+- A presença fica só em memória, sem "visto por último".
+- O servidor envia um ping de WebSocket a cada **20 segundos** (`sun::WS_PING_INTERVAL`). Sem receber nada do cliente por **60 segundos** (`sun::WS_IDLE_TIMEOUT`), ele encerra a conexão com o código **1001**.
+- Uma falha ao ler a presença encerra a conexão com o código **1011**.
 
 Mensagens (e frames) acima de **64 KiB** (`sun::MAX_MESSAGE_SIZE`) fazem o servidor encerrar a conexão, antes ou depois de autenticar.
 

@@ -156,6 +156,63 @@ body {
   min-height: 0;
 }
 
+.member-list {
+  width: 180px;
+  flex-shrink: 0;
+  padding: 16px 12px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: #161827;
+  font-size: 14px;
+}
+
+.member-list h3 {
+  margin: 0 0 6px;
+  color: #8a8aa3;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.member-list ul {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.member-list .member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.member-list .member.offline {
+  color: #8a8aa3;
+}
+
+.member-list .presence-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: #4a4d66;
+}
+
+.member-list .member.online .presence-dot {
+  background-color: #3ba55d;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .chat-main .no-messages {
   flex: 1;
 }

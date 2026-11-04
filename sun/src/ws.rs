@@ -2,7 +2,8 @@
 //!
 //! Toda conexão começa pela autenticação (ADR 0009): só quem manda um JWT válido
 //! como primeira mensagem chega ao loop de mensagens, que também repassa ao
-//! cliente o que é publicado no `hub`.
+//! cliente o que é publicado no `hub`. Enquanto ela durar, a pessoa conta como
+//! online, e um ping periódico descobre as conexões que morreram sem avisar.
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -13,11 +14,13 @@ use axum::response::Response;
 use orbit_shared::{ClientMessage, MessageRejectReason, ServerMessage, User};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
+use tokio::time::{Instant, MissedTickBehavior};
 use tracing::Instrument;
 
 use crate::AppState;
 use crate::auth::{self, JwtKeys};
 use crate::chat::messages;
+use crate::presence;
 
 /// Tamanho máximo de uma mensagem do cliente. O protocolo só tem mensagens
 /// pequenas (JSON de controle e chat); qualquer coisa maior é abuso ou bug.
@@ -25,6 +28,12 @@ pub const MAX_MESSAGE_SIZE: usize = 64 * 1024;
 
 /// Prazo para o cliente se autenticar depois de abrir a conexão.
 pub const WS_AUTH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// De quanto em quanto tempo o servidor envia um ping. O webview responde sozinho.
+pub const WS_PING_INTERVAL: Duration = Duration::from_secs(20);
+
+/// Sem receber nada do cliente por esse tempo, a conexão é dada como morta.
+pub const WS_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Prazo de cada envio ao cliente. Um cliente travado não pode segurar a conexão.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -47,9 +56,7 @@ async fn handle(mut socket: WebSocket, state: AppState) {
     if let Some((user, hub)) = authenticate(&mut socket, &state).await {
         tracing::info!(user_id = user.id, username = %user.username, "conexão WebSocket autenticada");
         let span = tracing::info_span!("user", user_id = user.id);
-        message_loop(socket, &state, &user, hub)
-            .instrument(span)
-            .await;
+        session(socket, &state, &user, hub).instrument(span).await;
     }
 
     tracing::debug!("conexão encerrada");
@@ -152,12 +159,46 @@ async fn reject(socket: &mut WebSocket) -> Result<(), SendError> {
     close(socket, close_code::POLICY, "autenticação recusada").await
 }
 
+/// Da entrada na presença até o fim da conexão.
+async fn session(
+    mut socket: WebSocket,
+    state: &AppState,
+    user: &User,
+    hub: broadcast::Receiver<ServerMessage>,
+) {
+    // Destruído em qualquer saída daqui, o que anuncia a saída da pessoa.
+    let _online = state.presence.connect(user);
+
+    let users = match presence::snapshot(&state.db, &state.presence).await {
+        Ok(users) => users,
+        Err(err) => {
+            tracing::error!(error = ?err, "falha ao ler a presença");
+            if let Err(err) = close(&mut socket, close_code::ERROR, "erro interno").await {
+                tracing::debug!(error = %err, "erro ao fechar a conexão");
+            }
+            return;
+        }
+    };
+    let snapshot = ServerMessage::PresenceSnapshot { users };
+    if let Err(err) = send_message(&mut socket, &snapshot).await {
+        tracing::debug!(error = %err, "erro ao enviar; encerrando conexão");
+        return;
+    }
+
+    message_loop(socket, state, user, hub).await;
+}
+
 async fn message_loop(
     mut socket: WebSocket,
     state: &AppState,
     user: &User,
     mut hub: broadcast::Receiver<ServerMessage>,
 ) {
+    let mut last_seen = Instant::now();
+    let mut ping =
+        tokio::time::interval_at(last_seen + state.ws_ping_interval, state.ws_ping_interval);
+    ping.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
     loop {
         // As duas esperas podem ser canceladas sem perder mensagem. O tratamento
         // roda depois do `select!`, então uma resposta nunca é interrompida no meio.
@@ -171,6 +212,7 @@ async fn message_loop(
                     }
                     None => break,
                 };
+                last_seen = Instant::now();
                 // Ping/Pong/Close de controle são tratados pelo axum; binário não faz parte do protocolo.
                 let Message::Text(text) = msg else { continue };
                 match handle_client_message(&text, state, user).await {
@@ -191,6 +233,20 @@ async fn message_loop(
                 // Só acontece se o `AppState` inteiro sumir: não há mais o que repassar.
                 Err(RecvError::Closed) => break,
             },
+            _ = ping.tick() => {
+                if let Err(err) = send_frame(&mut socket, Message::Ping(Default::default())).await {
+                    tracing::debug!(error = %err, "erro ao enviar ping; encerrando conexão");
+                    break;
+                }
+                continue;
+            }
+            () = tokio::time::sleep_until(last_seen + state.ws_idle_timeout) => {
+                tracing::debug!("cliente não responde; encerrando conexão");
+                if let Err(err) = close(&mut socket, close_code::AWAY, "sem resposta").await {
+                    tracing::debug!(error = %err, "erro ao fechar a conexão morta");
+                }
+                break;
+            }
         };
 
         match send_message(&mut socket, &outgoing).await {

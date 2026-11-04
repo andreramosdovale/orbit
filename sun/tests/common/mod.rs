@@ -177,7 +177,7 @@ impl TestServer {
             .context("emitindo token de teste")?;
         let mut ws = self.connect_ws().await?;
         send(&mut ws, &ClientMessage::Auth { token }).await?;
-        match recv(&mut ws).await? {
+        match recv_any(&mut ws).await? {
             ServerMessage::AuthOk { .. } => Ok(ws),
             other => bail!("esperava auth_ok, veio {other:?}"),
         }
@@ -197,17 +197,42 @@ pub async fn send(ws: &mut Ws, msg: &ClientMessage) -> anyhow::Result<()> {
         .context("enviando mensagem")
 }
 
-/// Próxima mensagem de texto do servidor, já desserializada.
+pub fn is_presence(msg: &ServerMessage) -> bool {
+    matches!(
+        msg,
+        ServerMessage::PresenceSnapshot { .. }
+            | ServerMessage::UserOnline { .. }
+            | ServerMessage::UserOffline { .. }
+    )
+}
+
+/// Próxima mensagem do servidor, ignorando a presença, que chega a todo momento.
+/// Para testar a presença, use [`recv_any`].
 pub async fn recv(ws: &mut Ws) -> anyhow::Result<ServerMessage> {
-    let msg = tokio::time::timeout(TIMEOUT, ws.next())
-        .await
-        .context("timeout esperando resposta do servidor")?
-        .context("conexão fechada sem resposta")?
-        .context("erro lendo do WebSocket")?;
-    let text = msg
-        .to_text()
-        .with_context(|| format!("esperava texto, veio {msg:?}"))?;
-    serde_json::from_str(text).with_context(|| format!("resposta inválida: {text}"))
+    loop {
+        let msg = recv_any(ws).await?;
+        if !is_presence(&msg) {
+            return Ok(msg);
+        }
+    }
+}
+
+/// Próxima mensagem de texto do servidor, já desserializada. Ler também responde aos pings.
+pub async fn recv_any(ws: &mut Ws) -> anyhow::Result<ServerMessage> {
+    loop {
+        let msg = tokio::time::timeout(TIMEOUT, ws.next())
+            .await
+            .context("timeout esperando resposta do servidor")?
+            .context("conexão fechada sem resposta")?
+            .context("erro lendo do WebSocket")?;
+        if matches!(msg, Message::Ping(_) | Message::Pong(_)) {
+            continue;
+        }
+        let text = msg
+            .to_text()
+            .with_context(|| format!("esperava texto, veio {msg:?}"))?;
+        return serde_json::from_str(text).with_context(|| format!("resposta inválida: {text}"));
+    }
 }
 
 /// Espera o servidor fechar a conexão e devolve o código do frame de Close.
@@ -221,6 +246,11 @@ pub async fn recv_close_code(ws: &mut Ws) -> anyhow::Result<u16> {
         match msg {
             Message::Close(Some(frame)) => return Ok(u16::from(frame.code)),
             Message::Ping(_) | Message::Pong(_) => continue,
+            Message::Text(ref text)
+                if serde_json::from_str::<ServerMessage>(text).is_ok_and(|m| is_presence(&m)) =>
+            {
+                continue;
+            }
             other => bail!("esperava Close com código, veio {other:?}"),
         }
     }

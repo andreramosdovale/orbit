@@ -21,12 +21,12 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 - [x] Tela de login no `moon` com endereço do servidor configurável ([spec 004](specs/004-tela-de-login.md), [ADR 0010](decisions/0010-token-no-localstorage.md))
 - [x] Testes de front com Vitest ([spec 004](specs/004-tela-de-login.md))
 
-## Fase 2: Chat de texto
+## Fase 2: Chat de texto ✅
 
 - [x] Canais de texto (criar/listar) ([spec 005](specs/005-canais-de-texto.md))
 - [x] Mensagens em tempo real via WebSocket, persistidas ([spec 006](specs/006-mensagens-em-tempo-real.md), [ADR 0011](decisions/0011-retencao-de-mensagens.md))
 - [x] Histórico paginado ([spec 007](specs/007-historico-paginado.md), [ADR 0012](decisions/0012-tanstack-query-no-front.md))
-- [ ] Presença (online/offline)
+- [x] Presença (online/offline) ([spec 008](specs/008-presenca.md))
 
 ## Fase 3: Voz
 

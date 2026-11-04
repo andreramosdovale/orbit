@@ -1,11 +1,18 @@
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api/http";
-import type { ChatMessage, MessageRejectReason, ServerMessage, TextChannel } from "../../bindings";
+import type {
+  ChatMessage,
+  MessageRejectReason,
+  ServerMessage,
+  TextChannel,
+  UserPresence,
+} from "../../bindings";
 import type { Session } from "../auth/session";
 import { createChannel, listChannels } from "./api";
 import { ChannelMessages } from "./ChannelMessages";
 import { Composer } from "./Composer";
+import { MemberList, withPresence } from "./MemberList";
 
 interface ChatLayoutProps {
   server: string;
@@ -76,6 +83,8 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
   const [selectedId, setSelectedId] = useState<number | null>(null);
   // Só o que chegou pelo WebSocket. O histórico fica no cache (ADR 0012).
   const [liveMessages, setLiveMessages] = useState<Record<number, ChatMessage[]>>({});
+  // Vem só do WebSocket, então também fica fora do cache.
+  const [members, setMembers] = useState<UserPresence[] | null>(null);
   const [newName, setNewName] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
 
@@ -112,6 +121,15 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
         case "message_rejected":
           setSendError(REJECT_MESSAGES[msg.reason]);
           break;
+        case "presence_snapshot":
+          setMembers(msg.users);
+          break;
+        case "user_online":
+        case "user_offline": {
+          const online = msg.type === "user_online";
+          setMembers((current) => current && withPresence(current, msg.user, online));
+          break;
+        }
         default:
           break;
       }
@@ -215,6 +233,8 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
           </>
         )}
       </section>
+
+      <MemberList members={members} />
     </div>
   );
 }

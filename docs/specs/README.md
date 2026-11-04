@@ -11,3 +11,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 | 005 | [Canais de texto (criar e listar)](005-canais-de-texto.md) | 2 | Concluída |
 | 006 | [Mensagens em tempo real](006-mensagens-em-tempo-real.md) | 2 | Concluída |
 | 007 | [Histórico paginado](007-historico-paginado.md) | 2 | Concluída |
+| 008 | [Presença (online/offline)](008-presenca.md) | 2 | Concluída |

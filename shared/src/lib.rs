@@ -46,6 +46,18 @@ pub enum ServerMessage {
     ChannelCreated {
         channel: TextChannel,
     },
+    /// Todas as contas e o estado de cada uma. Só para a conexão que acabou de entrar.
+    PresenceSnapshot {
+        users: Vec<UserPresence>,
+    },
+    /// Alguém ficou online, para todas as conexões.
+    UserOnline {
+        user: User,
+    },
+    /// Alguém ficou offline, para todas as conexões.
+    UserOffline {
+        user: User,
+    },
 }
 
 /// Corpo de `POST /auth/register`: auto-cadastro de um usuário novo.
@@ -102,6 +114,14 @@ pub struct ChatMessage {
     pub content: String,
     /// Horário do servidor, em UTC (ISO 8601).
     pub created_at: String,
+}
+
+/// Uma conta e se ela está conectada agora.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct UserPresence {
+    pub user: User,
+    pub online: bool,
 }
 
 /// Uma página do histórico de um canal: resposta de `GET /channels/{id}/messages`.
@@ -378,6 +398,36 @@ mod tests {
         assert_eq!(
             serde_json::to_value(req).unwrap(),
             json!({ "name": "música" })
+        );
+    }
+
+    #[test]
+    fn presence_wire_format() {
+        let user = User {
+            id: 1,
+            username: "fulano".into(),
+        };
+        let user_json = json!({ "id": 1, "username": "fulano" });
+        assert_eq!(
+            serde_json::to_value(ServerMessage::PresenceSnapshot {
+                users: vec![UserPresence {
+                    user: user.clone(),
+                    online: true,
+                }],
+            })
+            .unwrap(),
+            json!({
+                "type": "presence_snapshot",
+                "users": [{ "user": user_json, "online": true }],
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(ServerMessage::UserOnline { user: user.clone() }).unwrap(),
+            json!({ "type": "user_online", "user": user_json })
+        );
+        assert_eq!(
+            serde_json::to_value(ServerMessage::UserOffline { user }).unwrap(),
+            json!({ "type": "user_offline", "user": user_json })
         );
     }
 

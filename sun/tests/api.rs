@@ -59,6 +59,7 @@ async fn ws_oversized_message_closes_connection() -> anyhow::Result<()> {
     }
 
     // O servidor encerra a conexão: fim do stream, erro ou frame de Close, nunca uma resposta.
+    // A presença é enviada ao entrar, antes de ele ler a mensagem grande.
     loop {
         let next = tokio::time::timeout(TIMEOUT, ws.next())
             .await
@@ -66,6 +67,11 @@ async fn ws_oversized_message_closes_connection() -> anyhow::Result<()> {
         match next {
             None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
             Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
+            Some(Ok(Message::Text(ref text)))
+                if serde_json::from_str(text).is_ok_and(|m| common::is_presence(&m)) =>
+            {
+                continue;
+            }
             Some(Ok(other)) => anyhow::bail!("esperava fechamento, veio {other:?}"),
         }
     }
