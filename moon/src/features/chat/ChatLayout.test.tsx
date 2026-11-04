@@ -300,7 +300,15 @@ describe("ChatLayout", () => {
   });
 
   describe("voz", () => {
-    const VOICE_ROOM = { setMuted: vi.fn(), disconnect: vi.fn() };
+    const VOICE_ROOM = {
+      setMuted: vi.fn(),
+      startScreenShare: vi.fn(),
+      stopScreenShare: vi.fn(),
+      watchScreen: vi.fn(),
+      stopWatchingScreen: vi.fn(),
+      setScreenVideo: vi.fn(),
+      disconnect: vi.fn(),
+    };
 
     function voiceButton(name: string) {
       return screen.findByRole("button", { name: `Entrar na sala ${name}` });
@@ -332,6 +340,32 @@ describe("ChatLayout", () => {
       expect(screen.getByRole("heading", { name: "# jogos" })).toBeTruthy();
       expect(screen.getByRole("heading", { name: "Em sala" })).toBeTruthy();
       expect(VOICE_ROOM.disconnect).not.toHaveBeenCalled();
+    });
+
+    it("trocar de canal de texto mantém a transmissão aberta", async () => {
+      vi.mocked(connectVoiceRoom).mockImplementation(async (_url, _token, events) => {
+        events.onParticipants([
+          { id: "2", name: "beto", isLocal: false, speaking: false, muted: false, sharing: true },
+        ]);
+        return VOICE_ROOM;
+      });
+      VOICE_ROOM.stopWatchingScreen.mockClear();
+      stubResponses(() => jsonResponse(200, [GERAL, JOGOS]));
+      renderLayout();
+
+      fireEvent.click(await voiceButton("sala"));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Assistir à transmissão de beto" }),
+      );
+      expect(VOICE_ROOM.watchScreen).toHaveBeenCalledWith("2");
+      expect(screen.getByRole("region", { name: "Transmissão de beto" })).toBeTruthy();
+
+      const video = document.querySelector("video");
+      fireEvent.click(channelButton("jogos"));
+
+      expect(screen.getByRole("heading", { name: "# jogos" })).toBeTruthy();
+      expect(document.querySelector("video")).toBe(video);
+      expect(VOICE_ROOM.stopWatchingScreen).not.toHaveBeenCalled();
     });
 
     it("uma sessão nova do chat não sai da sala", async () => {

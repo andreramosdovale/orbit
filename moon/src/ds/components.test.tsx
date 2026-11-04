@@ -115,6 +115,11 @@ describe("Alert", () => {
     expect(screen.getByRole("button", { name: "Tentar" })).toBeTruthy();
   });
 
+  it("uma informação neutra usa o papel status", () => {
+    render(<Alert tone="info">Terminou</Alert>);
+    expect(screen.getByRole("status").classList.contains("ds-alert-info")).toBe(true);
+  });
+
   it("um aviso usa o papel status", () => {
     render(<Alert tone="success">Conta criada</Alert>);
     expect(screen.getByRole("status").classList.contains("ds-alert-success")).toBe(true);

@@ -118,7 +118,7 @@ Parâmetro opcional `before` (id de mensagem). Sucesso: `200` com `MessagePage`,
 ```
 
 - O `moon` monta o endereço como `ws://<host do servidor>:<livekit_port>`, porque o `sun` não sabe por qual endereço cada amigo o alcança.
-- O token é um JWT HS256 assinado com o segredo do LiveKit ([ADR 0014](decisions/0014-livekit-no-host.md)) e dura 10 minutos. Claims: `iss` (chave), `sub` (id do usuário), `name` (`username`), `nbf`, `exp` e `video`, com `room` (`voice-<id>`), `roomJoin`, `canSubscribe` e `canPublish` ligados, `canPublishData` desligado e `canPublishSources: ["microphone"]`.
+- O token é um JWT HS256 assinado com o segredo do LiveKit ([ADR 0014](decisions/0014-livekit-no-host.md)) e dura 10 minutos. Claims: `iss` (chave), `sub` (id do usuário), `name` (`username`), `nbf`, `exp` e `video`, com `room` (`voice-<id>`), `roomJoin`, `canSubscribe` e `canPublish` ligados, `canPublishData` desligado e `canPublishSources: ["microphone", "screen_share"]` ([spec 012](specs/012-transmissao-de-tela.md)), sem áudio da tela.
 - Sem as chaves do LiveKit, a resposta é `503 voice_unavailable`, e o resto do servidor funciona.
 
 ### Erros da API REST

@@ -4,7 +4,7 @@ import { ApiError } from "../../api/http";
 import type { VoiceChannel } from "../../bindings";
 import { Alert, Button, NavItem, SectionTitle, TextField } from "../../ds";
 import { createVoiceChannel, listVoiceChannels } from "./api";
-import { useVoiceRoom } from "./useVoiceRoom";
+import type { VoiceControls } from "./useVoiceRoom";
 import { VoicePanel } from "./VoicePanel";
 
 interface VoiceSectionProps {
@@ -12,6 +12,8 @@ interface VoiceSectionProps {
   token: string;
   /** Salas anunciadas pelo WebSocket nesta tela. */
   announced: VoiceChannel[];
+  /** A sala atual: fica no `ChatLayout`, porque a área principal mostra a transmissão. */
+  voice: VoiceControls;
   onSessionExpired: () => void;
 }
 
@@ -30,14 +32,20 @@ function mergeChannels(channels: VoiceChannel[], extra: VoiceChannel[]): VoiceCh
 }
 
 /** Salas de voz na lateral e a sala atual. Continua aberta ao trocar de canal de texto. */
-export function VoiceSection({ server, token, announced, onSessionExpired }: VoiceSectionProps) {
+export function VoiceSection({
+  server,
+  token,
+  announced,
+  voice,
+  onSessionExpired,
+}: VoiceSectionProps) {
   const channelsQuery = useQuery({
     queryKey: ["voice-channels"],
     queryFn: () => listVoiceChannels(server, token),
   });
   const [created, setCreated] = useState<VoiceChannel[]>([]);
   const [newName, setNewName] = useState("");
-  const { state, join, leave, toggleMute } = useVoiceRoom({ server, token, onSessionExpired });
+  const { state, sharing, join, leave, toggleMute, toggleShare, watch } = voice;
 
   const create = useMutation({
     mutationFn: (name: string) => createVoiceChannel(server, token, { name }),
@@ -95,7 +103,10 @@ export function VoiceSection({ server, token, announced, onSessionExpired }: Voi
         <VoicePanel
           channelName={current?.name ?? ""}
           state={state}
+          sharing={sharing}
           onToggleMute={toggleMute}
+          onToggleShare={toggleShare}
+          onWatch={watch}
           onLeave={leave}
         />
       )}

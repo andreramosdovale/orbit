@@ -16,14 +16,25 @@ export interface VoiceState {
   channelId: number | null;
   participants: VoiceParticipant[];
   muted: boolean;
+  /** O seletor de tela está aberto ou a transmissão está mudando de estado. */
+  sharePending: boolean;
+  /** Id de quem está sendo assistido. */
+  watching: string | null;
+  /** Aviso que não é um erro, como o fim da transmissão assistida. */
+  notice: string | null;
   error: string | null;
 }
+
+export type VoiceControls = ReturnType<typeof useVoiceRoom>;
 
 const IDLE: VoiceState = {
   status: "idle",
   channelId: null,
   participants: [],
   muted: false,
+  sharePending: false,
+  watching: null,
+  notice: null,
   error: null,
 };
 
@@ -79,6 +90,10 @@ export function useVoiceRoom({
               setState((s) => ({ ...s, status: connection }));
             }
           },
+          onWatchedScreenEnded: () => {
+            if (current !== attempt.current) return;
+            setState((s) => ({ ...s, watching: null, notice: "A transmissão terminou." }));
+          },
         });
         if (current !== attempt.current) {
           opened.disconnect();
@@ -116,6 +131,42 @@ export function useVoiceRoom({
     }
   }, [state.muted]);
 
+  const sharing = state.participants.some((p) => p.isLocal && p.sharing);
+
+  const toggleShare = useCallback(async () => {
+    const opened = room.current;
+    if (!opened) return;
+    setState((s) => ({ ...s, sharePending: true, error: null }));
+    let error: string | null = null;
+    try {
+      if (sharing) await opened.stopScreenShare();
+      else await opened.startScreenShare();
+    } catch (err) {
+      error = err instanceof VoiceRoomError ? err.message : "Não foi possível parar a transmissão.";
+    }
+    // A pessoa pode ter saído da sala com o seletor aberto.
+    if (room.current !== opened) return;
+    setState((s) => ({ ...s, sharePending: false, error }));
+  }, [sharing]);
+
+  const watch = useCallback((participantId: string) => {
+    room.current?.watchScreen(participantId);
+    setState((s) => ({ ...s, watching: participantId, notice: null }));
+  }, []);
+
+  const stopWatching = useCallback(() => {
+    room.current?.stopWatchingScreen();
+    setState((s) => ({ ...s, watching: null }));
+  }, []);
+
+  const setScreenVideo = useCallback((element: HTMLVideoElement | null) => {
+    room.current?.setScreenVideo(element);
+  }, []);
+
+  const dismissNotice = useCallback(() => {
+    setState((s) => ({ ...s, notice: null }));
+  }, []);
+
   // Sair da conta ou fechar a tela encerra a sala.
   useEffect(
     () => () => {
@@ -125,5 +176,16 @@ export function useVoiceRoom({
     [closeCurrent],
   );
 
-  return { state, join, leave, toggleMute };
+  return {
+    state,
+    sharing,
+    join,
+    leave,
+    toggleMute,
+    toggleShare,
+    watch,
+    stopWatching,
+    setScreenVideo,
+    dismissNotice,
+  };
 }

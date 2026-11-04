@@ -192,7 +192,7 @@ async fn token_grants() -> anyhow::Result<()> {
     assert_eq!(video["canPublishData"], false);
     assert_eq!(
         video["canPublishSources"],
-        serde_json::json!(["microphone"])
+        serde_json::json!(["microphone", "screen_share"])
     );
 
     let exp = claims["exp"].as_u64().expect("exp deveria ser um número");

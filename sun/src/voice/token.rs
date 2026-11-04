@@ -12,8 +12,8 @@ const DEFAULT_PORT: u16 = 7880;
 /// Quanto o token dura. Só precisa valer até conectar: depois, o SDK cuida da renovação.
 const TOKEN_TTL_SECS: u64 = 10 * 60;
 
-/// Só o microfone: tela e câmera ficam para as Fases 4 e 5.
-const PUBLISH_SOURCES: [&str; 1] = ["microphone"];
+/// Microfone e tela, sem áudio da tela (spec 012). A câmera fica de fora.
+const PUBLISH_SOURCES: [&str; 2] = ["microphone", "screen_share"];
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LiveKitConfigError {

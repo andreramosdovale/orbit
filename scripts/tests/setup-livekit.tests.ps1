@@ -1,4 +1,4 @@
-﻿# Testes do setup-livekit.ps1, sem rede nem firewall, com um zip falso.
+﻿# Testes dos scripts do host, sem rede nem firewall, com um zip falso.
 # Rode com: powershell -ExecutionPolicy Bypass -File scripts\tests\setup-livekit.tests.ps1
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +49,36 @@ try {
   Check "roda de novo" ((Run-Setup $dir $sha) -eq 0)
   Check "mantém as chaves" ((Get-Content (Join-Path $dir "sun.env") -Raw) -eq $firstEnv)
   Check "mantém o yaml" ((Get-Content (Join-Path $dir "livekit.yaml") -Raw) -eq $yaml)
+
+  # Sem -InstallDir e -SunExe: os padrões apontam para a raiz. Roda em uma cópia, para não
+  # mexer no repositório, e sem os parâmetros que os outros testes sempre passam.
+  $copy = Join-Path $root "copia"
+  $copyScripts = Join-Path $copy "scripts"
+  New-Item -ItemType Directory -Path $copyScripts | Out-Null
+  Copy-Item $script $copyScripts
+  $startHost = Join-Path (Split-Path -Parent $script) "start-host.ps1"
+  Copy-Item $startHost $copyScripts
+  $copiedSetup = Join-Path $copyScripts "setup-livekit.ps1"
+  $copiedStart = Join-Path $copyScripts "start-host.ps1"
+
+  $errors = Join-Path $root "err-padrao.txt"
+  $process = Start-Process powershell -Wait -PassThru -NoNewWindow `
+    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $copiedStart) `
+    -RedirectStandardOutput (Join-Path $root "out.txt") -RedirectStandardError $errors
+  Check "start-host sem LiveKit falha" ($process.ExitCode -ne 0)
+  Check "start-host procura o LiveKit na raiz" ((Get-Content $errors -Raw).Replace("`r`n", "").Replace("`n", "").Contains("livekit-server.exe"))
+
+  $process = Start-Process powershell -Wait -PassThru -NoNewWindow `
+    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $copiedSetup, "-SkipFirewall", "-SourceZip", $zip, "-ExpectedSha256", $sha) `
+    -RedirectStandardOutput (Join-Path $root "out.txt") -RedirectStandardError $errors
+  Check "setup instala sem -InstallDir" ($process.ExitCode -eq 0)
+  Check "setup usa a pasta livekit na raiz" (Test-Path (Join-Path $copy "livekit\sun.env"))
+
+  $process = Start-Process powershell -Wait -PassThru -NoNewWindow `
+    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $copiedStart) `
+    -RedirectStandardOutput (Join-Path $root "out.txt") -RedirectStandardError $errors
+  Check "start-host sem o sun falha" ($process.ExitCode -ne 0)
+  Check "start-host procura o sun na raiz" ((Get-Content $errors -Raw).Replace("`r`n", "").Replace("`n", "").Contains("sun.exe"))
 
   # Modo -Dev.
   $devDir = Join-Path $root "dev"

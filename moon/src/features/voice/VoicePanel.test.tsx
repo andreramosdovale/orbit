@@ -5,24 +5,45 @@ import type { VoiceState } from "./useVoiceRoom";
 import { VoicePanel } from "./VoicePanel";
 
 function participant(overrides: Partial<VoiceParticipant>): VoiceParticipant {
-  return { id: "1", name: "ana", isLocal: false, speaking: false, muted: false, ...overrides };
+  return {
+    id: "1",
+    name: "ana",
+    isLocal: false,
+    speaking: false,
+    muted: false,
+    sharing: false,
+    ...overrides,
+  };
 }
 
-function setup(overrides: Partial<VoiceState> = {}) {
+function setup(overrides: Partial<VoiceState> = {}, sharing = false) {
   const onToggleMute = vi.fn();
+  const onToggleShare = vi.fn();
+  const onWatch = vi.fn();
   const onLeave = vi.fn();
   const state: VoiceState = {
     status: "connected",
     channelId: 1,
     participants: [],
     muted: false,
+    sharePending: false,
+    watching: null,
+    notice: null,
     error: null,
     ...overrides,
   };
   render(
-    <VoicePanel channelName="geral" state={state} onToggleMute={onToggleMute} onLeave={onLeave} />,
+    <VoicePanel
+      channelName="geral"
+      state={state}
+      sharing={sharing}
+      onToggleMute={onToggleMute}
+      onToggleShare={onToggleShare}
+      onWatch={onWatch}
+      onLeave={onLeave}
+    />,
   );
-  return { onToggleMute, onLeave };
+  return { onToggleMute, onToggleShare, onWatch, onLeave };
 }
 
 describe("VoicePanel", () => {
@@ -58,6 +79,54 @@ describe("VoicePanel", () => {
     setup({ muted: true });
 
     expect(screen.getByRole("button", { name: "Ativar microfone" })).toBeTruthy();
+  });
+
+  describe("transmissão", () => {
+    it("o botão inicia e, no ar, vira parar", () => {
+      const { onToggleShare } = setup();
+
+      fireEvent.click(screen.getByRole("button", { name: "Transmitir tela" }));
+      expect(onToggleShare).toHaveBeenCalledOnce();
+      expect(screen.queryByText("Você está transmitindo")).toBeNull();
+    });
+
+    it("no ar, avisa e oferece parar", () => {
+      setup({}, true);
+
+      expect(screen.getByText("Você está transmitindo")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Parar transmissão" })).toBeTruthy();
+    });
+
+    it("com o seletor aberto, o botão fica desativado", () => {
+      setup({ sharePending: true });
+      expect(
+        (screen.getByRole("button", { name: "Transmitir tela" }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+    });
+
+    it("quem transmite ganha a marcação e o botão de assistir", () => {
+      const { onWatch } = setup({
+        participants: [participant({ id: "2", name: "beto", sharing: true })],
+      });
+
+      expect(screen.getByRole("listitem").textContent).toContain("beto · transmitindo");
+      fireEvent.click(screen.getByRole("button", { name: "Assistir à transmissão de beto" }));
+      expect(onWatch).toHaveBeenCalledWith("2");
+    });
+
+    it("não oferece assistir a si mesmo nem a quem já está na tela", () => {
+      setup({
+        watching: "2",
+        participants: [
+          participant({ id: "1", name: "ana", isLocal: true, sharing: true }),
+          participant({ id: "2", name: "beto", sharing: true }),
+          participant({ id: "3", name: "caio" }),
+        ],
+      });
+
+      expect(screen.queryByRole("button", { name: /Assistir/ })).toBeNull();
+      expect(screen.getAllByRole("listitem")[0].textContent).toBe("ana (você)");
+    });
   });
 
   it("fora de connected, mostra o estado e desativa o microfone, mas deixa sair", () => {

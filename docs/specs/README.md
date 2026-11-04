@@ -15,3 +15,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 | 009 | [Reconexão automática](009-reconexao-automatica.md) | 2 | Concluída |
 | 010 | [Salas de voz](010-salas-de-voz.md) | 3 | Em andamento |
 | 011 | [Design system do `moon`](011-design-system.md) | — | Concluída |
+| 012 | [Transmissão de tela (v1, pelo webview)](012-transmissao-de-tela.md) | 4 | Em andamento |
