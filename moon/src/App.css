@@ -69,6 +69,8 @@ body {
 .chat-sidebar {
   width: 260px;
   flex-shrink: 0;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -154,6 +156,70 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+.voice-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.voice-section h3,
+.voice-panel h3 {
+  margin: 0;
+  color: #8a8aa3;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.voice-channels,
+.voice-panel ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voice-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: #1f2236;
+}
+
+.voice-panel .voice-status {
+  margin: 0;
+  color: #8a8aa3;
+  font-size: 12px;
+}
+
+.voice-participant {
+  padding: 2px 6px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.voice-participant.speaking {
+  border-color: #3ba55d;
+}
+
+.voice-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.voice-actions button {
+  flex: 1;
+  padding: 4px;
+  font: inherit;
+  font-size: 12px;
 }
 
 .chat-main .connection-lost {

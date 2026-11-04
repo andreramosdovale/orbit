@@ -27,7 +27,13 @@ async fn main() -> anyhow::Result<()> {
     let jwt = sun::JwtKeys::load_or_create(&db)
         .await
         .context("carregando o segredo do JWT")?;
-    let state = sun::AppState::new(db, jwt);
+    let mut state = sun::AppState::new(db, jwt);
+    state.livekit = livekit_config()?;
+    if state.livekit.is_none() {
+        tracing::warn!(
+            "voz desativada: LIVEKIT_API_KEY e LIVEKIT_API_SECRET não definidas (docs/host-setup.md)"
+        );
+    }
 
     let addr = listen_addr()?;
     let listener = tokio::net::TcpListener::bind(addr)
@@ -88,6 +94,16 @@ fn db_path() -> anyhow::Result<PathBuf> {
         .parent()
         .context("o executável não está dentro de uma pasta")?;
     Ok(dir.join(DEFAULT_DB_FILE))
+}
+
+/// Chaves do LiveKit, das variáveis de ambiente. Sem elas, a voz fica desativada.
+fn livekit_config() -> anyhow::Result<Option<sun::LiveKitConfig>> {
+    sun::LiveKitConfig::from_values(
+        optional_env("LIVEKIT_API_KEY")?,
+        optional_env("LIVEKIT_API_SECRET")?,
+        optional_env("LIVEKIT_PORT")?,
+    )
+    .context("configuração do LiveKit")
 }
 
 /// Completa no Ctrl+C. Se não der para ouvir o sinal, loga e segue rodando até o processo morrer.

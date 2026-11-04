@@ -2,6 +2,9 @@
 node_modules/
 dist/
 
+# LiveKit do host: contém um segredo (ADR 0014)
+/livekit/
+
 # Dados locais do servidor
 *.db
 *.db-shm

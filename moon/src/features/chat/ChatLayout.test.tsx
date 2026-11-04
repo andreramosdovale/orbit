@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ServerMessage } from "../../bindings";
 import type { Session } from "../auth/session";
+import { connectVoiceRoom } from "../voice/room";
 import { ChatLayout } from "./ChatLayout";
+
+// A conexão real depende de WebRTC e de um LiveKit.
+vi.mock("../voice/room", async (original) => ({
+  ...(await original<typeof import("../voice/room")>()),
+  connectVoiceRoom: vi.fn(),
+}));
 
 const GERAL = { id: 1, name: "geral" };
 const JOGOS = { id: 2, name: "jogos" };
@@ -59,6 +66,7 @@ function renderLayout() {
 }
 
 const EMPTY_PAGE = { messages: [], has_more: false };
+const VOICE_CHANNELS = [{ id: 1, name: "sala" }];
 
 function pathOf(url: string): string {
   const { pathname, search } = new URL(url);
@@ -76,6 +84,8 @@ function stubServer(
   const queue = [...responses];
   const fetchMock = vi.fn(async (url: string) => {
     const path = pathOf(url);
+    if (path.endsWith("/token")) return jsonResponse(200, { token: "x.y.z", livekit_port: 7880 });
+    if (path === "/voice-channels") return jsonResponse(200, VOICE_CHANNELS);
     if (path.includes("/messages")) {
       return history[path]?.() ?? jsonResponse(200, EMPTY_PAGE);
     }
@@ -163,7 +173,7 @@ describe("ChatLayout", () => {
     createNamed("geral");
 
     expect((await screen.findByRole("alert")).textContent).toBe(message);
-    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^# / })).toHaveLength(1);
     expect((screen.getByLabelText("Novo canal") as HTMLInputElement).value).toBe("geral");
   });
 
@@ -245,9 +255,10 @@ describe("ChatLayout", () => {
     const channels = new Promise<Response>((resolve) => {
       respond = resolve;
     });
-    vi.stubGlobal("fetch", async (url: string) =>
-      pathOf(url) === "/channels" ? channels : jsonResponse(200, EMPTY_PAGE),
-    );
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (pathOf(url) === "/channels") return channels;
+      return jsonResponse(200, pathOf(url) === "/voice-channels" ? [] : EMPTY_PAGE);
+    });
     const { emit } = renderLayout();
 
     emit({ type: "channel_created", channel: JOGOS });
@@ -286,6 +297,62 @@ describe("ChatLayout", () => {
     fireEvent.change(field, { target: { value: "oi" } });
     fireEvent.keyDown(field, { key: "Enter" });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  describe("voz", () => {
+    const VOICE_ROOM = { setMuted: vi.fn(), disconnect: vi.fn() };
+
+    function voiceButton(name: string) {
+      return screen.findByRole("button", { name: `Entrar na sala ${name}` });
+    }
+
+    it("voice_channel_created adiciona a sala, sem duplicar", async () => {
+      stubResponses(() => jsonResponse(200, [GERAL]));
+      const { emit } = renderLayout();
+      await voiceButton("sala");
+
+      const novaSala = { id: 2, name: "jogos" };
+      emit({ type: "voice_channel_created", channel: novaSala });
+      emit({ type: "voice_channel_created", channel: novaSala });
+
+      expect(screen.getAllByRole("button", { name: "Entrar na sala jogos" })).toHaveLength(1);
+    });
+
+    it("trocar de canal de texto não sai da sala", async () => {
+      vi.mocked(connectVoiceRoom).mockResolvedValue(VOICE_ROOM);
+      VOICE_ROOM.disconnect.mockClear();
+      stubResponses(() => jsonResponse(200, [GERAL, JOGOS]));
+      renderLayout();
+
+      fireEvent.click(await voiceButton("sala"));
+      expect(await screen.findByRole("heading", { name: "Em sala" })).toBeTruthy();
+
+      fireEvent.click(channelButton("jogos"));
+
+      expect(screen.getByRole("heading", { name: "# jogos" })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Em sala" })).toBeTruthy();
+      expect(VOICE_ROOM.disconnect).not.toHaveBeenCalled();
+    });
+
+    it("uma sessão nova do chat não sai da sala", async () => {
+      vi.mocked(connectVoiceRoom).mockResolvedValue(VOICE_ROOM);
+      VOICE_ROOM.disconnect.mockClear();
+      stubServer([() => jsonResponse(200, [GERAL]), () => jsonResponse(200, [GERAL])]);
+      const props = {
+        server: "http://host:7700",
+        token: "a.b.c",
+        onLogout: () => {},
+        onSessionExpired: () => {},
+      };
+      const { rerender } = render(<ChatLayout {...props} session={fakeSession().session} />);
+      fireEvent.click(await voiceButton("sala"));
+      await screen.findByRole("heading", { name: "Em sala" });
+
+      rerender(<ChatLayout {...props} session={fakeSession().session} />);
+
+      expect(screen.getByRole("heading", { name: "Em sala" })).toBeTruthy();
+      expect(VOICE_ROOM.disconnect).not.toHaveBeenCalled();
+    });
   });
 
   describe("reconexão", () => {

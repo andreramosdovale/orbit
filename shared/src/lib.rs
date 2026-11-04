@@ -58,6 +58,10 @@ pub enum ServerMessage {
     UserOffline {
         user: User,
     },
+    /// Sala de voz nova, enviada a todas as conexões.
+    VoiceChannelCreated {
+        channel: VoiceChannel,
+    },
 }
 
 /// Corpo de `POST /auth/register`: auto-cadastro de um usuário novo.
@@ -114,6 +118,31 @@ pub struct ChatMessage {
     pub content: String,
     /// Horário do servidor, em UTC (ISO 8601).
     pub created_at: String,
+}
+
+/// Sala de voz.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct VoiceChannel {
+    pub id: u32,
+    pub name: String,
+}
+
+/// Corpo de `POST /voice-channels`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CreateVoiceChannelRequest {
+    pub name: String,
+}
+
+/// O necessário para entrar em uma sala no LiveKit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct VoiceJoin {
+    /// Token de acesso, válido só para esta sala.
+    pub token: String,
+    /// Porta do LiveKit no mesmo host do `sun`.
+    pub livekit_port: u16,
 }
 
 /// Uma conta e se ela está conectada agora.
@@ -187,6 +216,8 @@ pub enum ApiErrorCode {
     ChannelNameTaken,
     /// O canal pedido não existe.
     UnknownChannel,
+    /// O servidor subiu sem as chaves do LiveKit.
+    VoiceUnavailable,
     /// Erro interno do servidor. Detalhes só no log do `sun`.
     Internal,
 }
@@ -398,6 +429,41 @@ mod tests {
         assert_eq!(
             serde_json::to_value(req).unwrap(),
             json!({ "name": "música" })
+        );
+    }
+
+    #[test]
+    fn voice_wire_format() {
+        let channel = VoiceChannel {
+            id: 1,
+            name: "geral".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(&channel).unwrap(),
+            json!({ "id": 1, "name": "geral" })
+        );
+        assert_eq!(
+            serde_json::to_value(CreateVoiceChannelRequest {
+                name: "jogos".into()
+            })
+            .unwrap(),
+            json!({ "name": "jogos" })
+        );
+        assert_eq!(
+            serde_json::to_value(VoiceJoin {
+                token: "a.b.c".into(),
+                livekit_port: 7880,
+            })
+            .unwrap(),
+            json!({ "token": "a.b.c", "livekit_port": 7880 })
+        );
+        assert_eq!(
+            serde_json::to_value(ServerMessage::VoiceChannelCreated { channel }).unwrap(),
+            json!({ "type": "voice_channel_created", "channel": { "id": 1, "name": "geral" } })
+        );
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::VoiceUnavailable).unwrap(),
+            json!("voice_unavailable")
         );
     }
 

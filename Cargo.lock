@@ -2615,6 +2615,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "tauri-specta",
+ "webview2-com",
 ]
 
 [[package]]

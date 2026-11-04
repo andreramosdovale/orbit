@@ -24,5 +24,9 @@ specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true
 
+# A mesma versão usada pelo Tauri: ao atualizá-lo, acompanhe (ADR 0015).
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+
 [lints]
 workspace = true

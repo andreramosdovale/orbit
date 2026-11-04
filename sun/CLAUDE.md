@@ -1,6 +1,6 @@
 # sun: servidor
 
-Servidor do Orbit que roda no PC do host. axum + tokio + sqlx (SQLite). Vai ganhar emissão de tokens LiveKit na Fase 3.
+Servidor do Orbit que roda no PC do host. axum + tokio + sqlx (SQLite). Emite tokens do LiveKit, mas não fala com ele.
 
 ## Estrutura
 
@@ -20,6 +20,10 @@ src/
 │   ├── mod.rs       # routes(): GET e POST /channels, GET /channels/{id}/messages (handlers finos)
 │   ├── channels.rs  # validação do nome, listagem e criação. Erro de domínio: ChannelError
 │   └── messages.rs  # validação, gravação e histórico de mensagens. Erro de domínio: MessageError
+├── voice/
+│   ├── mod.rs       # routes(): GET e POST /voice-channels, POST /voice-channels/{id}/token (handlers finos)
+│   ├── channels.rs  # salas de voz: usa a validação e o erro de chat/channels.rs
+│   └── token.rs     # LiveKitConfig: chaves do LiveKit e emissão do token (ADR 0014)
 ├── presence.rs      # Presence: conexões por usuário, em memória; PresenceGuard desconta ao ser destruído
 └── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), envia a presença, depois recebe ClientMessage e responde ServerMessage; ping e prazo do cliente
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
@@ -30,6 +34,7 @@ tests/
 ├── messages.rs      # mensagens em tempo real, com conexões WebSocket reais
 ├── history.rs       # histórico paginado
 ├── presence.rs      # presença e conexões mortas, com conexões WebSocket reais
+├── voice.rs         # salas de voz e tokens do LiveKit
 ├── ws_auth.rs       # autenticação do WebSocket
 └── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send, recv (ignora a presença), recv_any
 ```
@@ -95,6 +100,9 @@ O clippy permite `unwrap`/`expect` em testes (`clippy.toml`), mas falhas precisa
 |---|---|---|
 | `SUN_ADDR` | `0.0.0.0:7700` | Endereço de escuta (`ip:porta`; inválido faz o servidor não subir) |
 | `SUN_DB` | `orbit.db` ao lado do executável | Caminho do arquivo SQLite (criado se não existir) |
+| `LIVEKIT_API_KEY` | nenhum | Chave do LiveKit. Sem ela e sem o segredo, a voz fica desativada; só uma das duas faz o servidor não subir |
+| `LIVEKIT_API_SECRET` | nenhum | Segredo do LiveKit. Nunca vai para o log |
+| `LIVEKIT_PORT` | `7880` | Porta do LiveKit informada ao `moon` |
 | `RUST_LOG` | `info,sun=debug` em dev, `info` em release | Filtro do `tracing` (ex.: `sun=debug`; inválido faz o servidor não subir) |
 
 ## Testes

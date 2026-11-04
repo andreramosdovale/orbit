@@ -31,9 +31,9 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 
 ## Fase 3: Voz
 
-- [ ] LiveKit server rodando no host (script/guia de setup)
-- [ ] `sun` emite tokens LiveKit por canal de voz
-- [ ] Entrar/sair de sala, mute, indicador de quem está falando no `moon`
+- [x] LiveKit server rodando no host ([guia](host-setup.md), [ADR 0014](decisions/0014-livekit-no-host.md))
+- [x] `sun` emite tokens LiveKit por canal de voz ([spec 010](specs/010-salas-de-voz.md))
+- [ ] Entrar/sair de sala, mute, indicador de quem está falando no `moon` ([spec 010](specs/010-salas-de-voz.md), falta o teste com microfones reais)
 
 ## Fase 4: Transmissão de tela v1
 

@@ -44,7 +44,7 @@ flowchart LR
 - **Histórico:** ao abrir um canal, `moon` busca as mensagens anteriores via REST, em páginas (`/channels/{id}/messages`), e as junta por `id` com o que chega pelo WebSocket. Elas ficam em um cache em memória que dura enquanto a tela de chat estiver aberta ([ADR 0012](decisions/0012-tanstack-query-no-front.md) e [0013](decisions/0013-reconexao-automatica.md)).
 - **Presença:** o `sun` conta em memória as conexões autenticadas de cada pessoa. Quem entra recebe a lista de contas com o estado de cada uma, e as mudanças são publicadas no `hub`. Um ping periódico derruba as conexões que morreram sem avisar.
 - **Reconexão:** `moon` percebe a queda pelo fechamento do socket ou pela falta de resposta ao próprio `ping`, reconecta sozinho sem sair da tela e busca de novo o que está aberto ([ADR 0013](decisions/0013-reconexao-automatica.md)).
-- **Voz:** `moon` pede um token ao `sun` (REST), conecta direto no LiveKit pelo SDK JS no webview.
+- **Voz:** `moon` pede um token ao `sun` (REST) e conecta direto no LiveKit pelo SDK JS no webview, carregado só ao entrar na primeira sala. A voz não depende do WebSocket do chat. O host sobe o LiveKit com os scripts de `scripts/` ([guia](host-setup.md), [ADR 0014](decisions/0014-livekit-no-host.md)), e o core Rust libera o microfone às origens do app ([ADR 0015](decisions/0015-permissao-do-microfone.md)).
 - **Transmissão de tela:** o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md).
 
 ## Fonte única de tipos

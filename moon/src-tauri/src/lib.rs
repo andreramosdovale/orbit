@@ -1,10 +1,12 @@
 //! Lado Rust do app. Comandos expostos ao front são registrados em [`specta_builder`],
 //! que também gera `src/bindings.ts` (ver docs/decisions/0005).
 
+pub mod mic_permission;
+
 use orbit_shared::{
-    ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, LoginRequest, LoginResponse,
-    MessagePage, MessageRejectReason, RegisterRequest, ServerMessage, TextChannel, User,
-    UserPresence,
+    ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, CreateVoiceChannelRequest,
+    LoginRequest, LoginResponse, MessagePage, MessageRejectReason, RegisterRequest, ServerMessage,
+    TextChannel, User, UserPresence, VoiceChannel, VoiceJoin,
 };
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
@@ -37,6 +39,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<MessagePage>()
         .typ::<MessageRejectReason>()
         .typ::<CreateChannelRequest>()
+        .typ::<VoiceChannel>()
+        .typ::<CreateVoiceChannelRequest>()
+        .typ::<VoiceJoin>()
         .typ::<ApiErrorBody>()
 }
 
@@ -61,6 +66,13 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            #[cfg(windows)]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    mic_permission::allow_microphone(&window)?;
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!());

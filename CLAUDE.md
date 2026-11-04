@@ -12,6 +12,7 @@ Antes de mexer em algo não trivial, leia [`docs/architecture.md`](docs/architec
 | `moon/` | App desktop (Tauri 2 + Vite + React + TS) | [`moon/CLAUDE.md`](moon/CLAUDE.md) |
 | `shared/` | Protocolo: tipos usados por `sun` e `moon` | [`shared/CLAUDE.md`](shared/CLAUDE.md) |
 | `docs/` | Arquitetura, protocolo, roadmap, ADRs, specs | [`docs/README.md`](docs/README.md) |
+| `scripts/` | Instalar e subir o LiveKit no host (PowerShell, UTF-8 com BOM) | [`docs/host-setup.md`](docs/host-setup.md) |
 | `.claude/` | Settings, hook de formatação, skills | — |
 
 Os três crates Rust formam um Cargo workspace. A raiz guarda as versões compartilhadas (`[workspace.dependencies]`), os lints e o profile de release.
