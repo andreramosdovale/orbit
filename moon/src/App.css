@@ -360,3 +360,41 @@ aside.member-list {
   min-height: 0;
   max-height: none;
 }
+
+section.share-picker {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: var(--space-3);
+  max-height: 50vh;
+  margin-bottom: var(--space-3);
+  overflow-y: auto;
+}
+
+.share-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.share-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-picker-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.share-picker-app {
+  color: var(--text-muted);
+}
+
+.share-picker-cancel {
+  align-self: flex-end;
+}

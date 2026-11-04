@@ -7,7 +7,7 @@ export interface VoiceParticipant {
   isLocal: boolean;
   speaking: boolean;
   muted: boolean;
-  /** Está transmitindo a tela. */
+  /** Está transmitindo a tela, pela identidade `<id>#screen`. */
   sharing: boolean;
 }
 
@@ -23,9 +23,6 @@ export interface VoiceEvents {
 /** Sala conectada. Esta interface isola o SDK, para os testes não dependerem de WebRTC. */
 export interface VoiceRoom {
   setMuted: (muted: boolean) => Promise<void>;
-  /** Abre o seletor e transmite. Devolve `false` se a pessoa cancelou o seletor. */
-  startScreenShare: () => Promise<boolean>;
-  stopScreenShare: () => Promise<void>;
   /** Passa a baixar a tela da pessoa. Só uma por vez: troca a que estiver sendo assistida. */
   watchScreen: (participantId: string) => void;
   stopWatchingScreen: () => void;
@@ -61,21 +58,23 @@ function microphoneError(err: unknown): VoiceRoomError {
   return new VoiceRoomError("Não foi possível usar o microfone.");
 }
 
-/** Limite de banda da transmissão, por espectador (spec 012). */
-const SCREEN_MAX_BITRATE = 4_000_000;
-const SCREEN_MAX_FRAMERATE = 30;
+/** A transmissão chega como outro participante (ADR 0006), que a lista junta à pessoa. */
+const SCREEN_SUFFIX = "#screen";
+
+export function isScreenIdentity(identity: string): boolean {
+  return identity.endsWith(SCREEN_SUFFIX);
+}
+
+export function screenIdentity(participantId: string): string {
+  return `${participantId}${SCREEN_SUFFIX}`;
+}
 
 /**
  * Conecta à sala e publica o microfone. O SDK só é carregado aqui, ao entrar na primeira
  * sala: ele é grande, e quem só usa o chat não precisa dele.
  */
 export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => {
-  const {
-    Room: LiveKitRoom,
-    RoomEvent,
-    ScreenSharePresets,
-    Track,
-  } = await import("livekit-client");
+  const { Room: LiveKitRoom, RoomEvent, Track } = await import("livekit-client");
 
   const room: Room = new LiveKitRoom();
   const audioElements = new Set<HTMLMediaElement>();
@@ -83,14 +82,35 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
   let watchedTrack: import("livekit-client").RemoteTrack | null = null;
   let screenVideo: HTMLVideoElement | null = null;
 
-  const screenPublication = (participantId: string): RemoteTrackPublication | undefined =>
-    room.remoteParticipants.get(participantId)?.getTrackPublication(Track.Source.ScreenShare);
+  // O vídeo e o áudio da transmissão andam juntos: só são baixados por quem assiste.
+  const screenPublications = (participantId: string): RemoteTrackPublication[] => {
+    const screen = room.remoteParticipants.get(screenIdentity(participantId));
+    if (!screen) return [];
+    return [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].flatMap((source) => {
+      const publication = screen.getTrackPublication(source);
+      return publication ? [publication] : [];
+    });
+  };
 
   const showWatchedTrack = () => {
     if (watchedTrack && screenVideo) watchedTrack.attach(screenVideo);
   };
+  const removeAudio = (track: import("livekit-client").Track) => {
+    for (const element of track.detach()) {
+      audioElements.delete(element);
+      element.remove();
+    }
+  };
   const stopWatching = () => {
-    if (watchedId !== null) screenPublication(watchedId)?.setSubscribed(false);
+    if (watchedId !== null) {
+      for (const publication of screenPublications(watchedId)) {
+        // O áudio some na hora: o aviso do SDK só chega depois de uma renegociação.
+        if (publication.kind === Track.Kind.Audio && publication.track) {
+          removeAudio(publication.track);
+        }
+        publication.setSubscribed(false);
+      }
+    }
     if (watchedTrack && screenVideo) watchedTrack.detach(screenVideo);
     watchedId = null;
     watchedTrack = null;
@@ -101,7 +121,7 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
     events.onWatchedScreenEnded();
   };
 
-  // O vídeo só é baixado por quem pede, para poupar o upload do host. O áudio é sempre ouvido.
+  // As vozes são sempre ouvidas. A transmissão só por quem pede, para poupar o upload do host.
   const subscribeMicrophone = (participant: RemoteParticipant) => {
     participant.getTrackPublication(Track.Source.Microphone)?.setSubscribed(true);
   };
@@ -111,7 +131,9 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
 
   const describe = (participant: Participant, isLocal: boolean): VoiceParticipant => {
     const microphone = participant.getTrackPublication(Track.Source.Microphone);
-    const screen = participant.getTrackPublication(Track.Source.ScreenShare);
+    const screen = room.remoteParticipants
+      .get(screenIdentity(participant.identity))
+      ?.getTrackPublication(Track.Source.ScreenShare);
     return {
       id: participant.identity,
       name: participant.name || participant.identity,
@@ -124,7 +146,9 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
   const publish = () => {
     events.onParticipants([
       describe(room.localParticipant, true),
-      ...[...room.remoteParticipants.values()].map((p) => describe(p, false)),
+      ...[...room.remoteParticipants.values()]
+        .filter((p) => !isScreenIdentity(p.identity))
+        .map((p) => describe(p, false)),
     ]);
   };
 
@@ -142,23 +166,25 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
     room.on(event, publish);
   }
 
+  const isWatched = (identity: string) =>
+    watchedId !== null && identity === screenIdentity(watchedId);
+
   room.on(RoomEvent.TrackPublished, (publication, participant) => {
-    if (publication.source === Track.Source.Microphone) publication.setSubscribed(true);
-    if (publication.source === Track.Source.ScreenShare && participant.identity === watchedId) {
+    if (publication.source === Track.Source.Microphone || isWatched(participant.identity)) {
       publication.setSubscribed(true);
     }
   });
   room.on(RoomEvent.TrackUnpublished, (publication, participant) => {
-    if (publication.source === Track.Source.ScreenShare && participant.identity === watchedId) {
+    if (publication.source === Track.Source.ScreenShare && isWatched(participant.identity)) {
       endWatching();
     }
   });
   room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-    if (participant.identity === watchedId) endWatching();
+    if (isWatched(participant.identity)) endWatching();
   });
   room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
     if (track.kind === Track.Kind.Video) {
-      if (publication.source === Track.Source.ScreenShare && participant.identity === watchedId) {
+      if (publication.source === Track.Source.ScreenShare && isWatched(participant.identity)) {
         watchedTrack = track;
         showWatchedTrack();
       }
@@ -171,10 +197,7 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
   room.on(RoomEvent.TrackUnsubscribed, (track) => {
     // O elemento de vídeo é da tela, que cuida dele. Só os de áudio são criados aqui.
     if (track.kind === Track.Kind.Video) return;
-    for (const element of track.detach()) {
-      audioElements.delete(element);
-      element.remove();
-    }
+    removeAudio(track);
   });
 
   room.on(RoomEvent.Reconnecting, () => events.onConnectionState("reconnecting"));
@@ -207,34 +230,10 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
       await room.localParticipant.setMicrophoneEnabled(!muted);
       publish();
     },
-    startScreenShare: async () => {
-      try {
-        await room.localParticipant.setScreenShareEnabled(
-          true,
-          { audio: false, resolution: ScreenSharePresets.h1080fps30.resolution },
-          {
-            simulcast: false,
-            screenShareEncoding: {
-              maxBitrate: SCREEN_MAX_BITRATE,
-              maxFramerate: SCREEN_MAX_FRAMERATE,
-            },
-          },
-        );
-      } catch (err) {
-        if (err instanceof Error && err.name === "NotAllowedError") return false;
-        throw new VoiceRoomError("Não foi possível transmitir a tela.");
-      }
-      publish();
-      return true;
-    },
-    stopScreenShare: async () => {
-      await room.localParticipant.setScreenShareEnabled(false);
-      publish();
-    },
     watchScreen: (participantId) => {
       stopWatching();
       watchedId = participantId;
-      screenPublication(participantId)?.setSubscribed(true);
+      for (const publication of screenPublications(participantId)) publication.setSubscribed(true);
     },
     stopWatchingScreen: stopWatching,
     setScreenVideo: (element) => {

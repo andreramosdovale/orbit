@@ -18,6 +18,7 @@ import type {
 import { Alert, Avatar, Button, NavItem, SectionTitle, Surface, TextField } from "../../ds";
 import type { Session } from "../auth/session";
 import { ScreenStage } from "../voice/ScreenStage";
+import { SharePicker } from "../voice/SharePicker";
 import { useVoiceRoom } from "../voice/useVoiceRoom";
 import { VoiceSection } from "../voice/VoiceSection";
 import { createChannel, listChannels } from "./api";
@@ -278,6 +279,13 @@ function ChatScreen({
           >
             {voice.state.notice}
           </Alert>
+        )}
+        {voice.state.shareTargets && (
+          <SharePicker
+            targets={voice.state.shareTargets}
+            onPick={voice.startShare}
+            onCancel={voice.cancelShare}
+          />
         )}
         {watched && (
           <ScreenStage

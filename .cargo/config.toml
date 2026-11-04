@@ -1,0 +1,3 @@
+# Exigido pelo WebRTC pré-compilado do SDK do LiveKit (ADR 0017).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

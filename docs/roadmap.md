@@ -37,15 +37,17 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 
 ## Fase 4: Transmissão de tela v1
 
+Substituída pela Fase 5: a captura pelo webview foi removida antes do teste com a tela real ([ADR 0017](decisions/0017-sdk-nativo-do-livekit.md)).
+
 - [ ] Transmissão via `getDisplayMedia` no webview, sem áudio ([spec 012](specs/012-transmissao-de-tela.md), falta o teste com a tela real)
 - [ ] Assistir transmissões de outros ([spec 012](specs/012-transmissao-de-tela.md), falta o teste em outro PC)
 
 ## Fase 5: Transmissão de tela v2 (nativa)
 
-- [ ] Captura de janela via Windows Graphics Capture (`windows-capture`)
-- [ ] Áudio do processo via WASAPI process loopback
-- [ ] Encoding em hardware
-- [ ] Publicação via LiveKit Rust SDK como `<usuario>#screen`
+- [ ] Captura de janela via Windows Graphics Capture (`windows-capture`) ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
+- [ ] Áudio do processo via WASAPI process loopback ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
+- [ ] Encoding em hardware (spec própria, porque o SDK não o oferece no Windows: [ADR 0017](decisions/0017-sdk-nativo-do-livekit.md))
+- [ ] Publicação via LiveKit Rust SDK como `<usuario>#screen` ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
 
 ## Fase 6: Distribuição
 

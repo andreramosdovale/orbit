@@ -27,6 +27,8 @@ function setup(overrides: Partial<VoiceState> = {}, sharing = false) {
     participants: [],
     muted: false,
     sharePending: false,
+    sharing,
+    shareTargets: null,
     watching: null,
     notice: null,
     error: null,

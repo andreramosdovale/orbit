@@ -45,8 +45,7 @@ flowchart LR
 - **Presença:** o `sun` conta em memória as conexões autenticadas de cada pessoa. Quem entra recebe a lista de contas com o estado de cada uma, e as mudanças são publicadas no `hub`. Um ping periódico derruba as conexões que morreram sem avisar.
 - **Reconexão:** `moon` percebe a queda pelo fechamento do socket ou pela falta de resposta ao próprio `ping`, reconecta sozinho sem sair da tela e busca de novo o que está aberto ([ADR 0013](decisions/0013-reconexao-automatica.md)).
 - **Voz:** `moon` pede um token ao `sun` (REST) e conecta direto no LiveKit pelo SDK JS no webview, carregado só ao entrar na primeira sala. A voz não depende do WebSocket do chat. O host sobe o LiveKit com os scripts de `scripts/` ([guia](host-setup.md), [ADR 0014](decisions/0014-livekit-no-host.md)), e o core Rust libera o microfone às origens do app ([ADR 0015](decisions/0015-permissao-do-microfone.md)).
-- **Transmissão de tela (v1):** dentro de uma sala de voz, `moon` captura com `getDisplayMedia` e publica no LiveKit pelo SDK JS. O vídeo só é baixado por quem clica em **Assistir** ([spec 012](specs/012-transmissao-de-tela.md)).
-- **Transmissão de tela (v2, Fase 5):** o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md).
+- **Transmissão de tela:** dentro de uma sala de voz, o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track, só depois de clicar em **Assistir**. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md) e [0017](decisions/0017-sdk-nativo-do-livekit.md).
 
 ## Fonte única de tipos
 
