@@ -1,6 +1,6 @@
 # 0012. TanStack Query para as chamadas de chat e o cache em memória do `moon`
 
-- **Status:** Aceita
+- **Status:** Aceita, com o tempo de vida do cache alterado pelo [ADR 0013](0013-reconexao-automatica.md)
 - **Data:** 2026-11-04
 
 ## Contexto

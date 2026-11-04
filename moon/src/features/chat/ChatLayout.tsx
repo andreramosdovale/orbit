@@ -1,5 +1,11 @@
-import { QueryClient, QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/http";
 import type {
   ChatMessage,
@@ -18,6 +24,8 @@ interface ChatLayoutProps {
   server: string;
   token: string;
   session: Session;
+  /** Presente enquanto a conexão estiver caída. A `session` é a última que funcionou. */
+  connectionLost?: { retrying: boolean; onRetry: () => void };
   onLogout: () => void;
   /** O servidor recusou o token em uma chamada REST. */
   onSessionExpired: () => void;
@@ -32,8 +40,8 @@ const REJECT_MESSAGES: Record<MessageRejectReason, string> = {
 const NO_MESSAGES: ChatMessage[] = [];
 
 /**
- * Cache da conexão atual (ADR 0012). Os dados não envelhecem, porque o WebSocket
- * entrega o que há de novo, e um erro aparece na hora, com **Tentar de novo**.
+ * Cache da tela de chat (ADR 0012 e 0013). Os dados só envelhecem ao reconectar, porque
+ * o WebSocket entrega o que há de novo, e um erro aparece na hora, com **Tentar de novo**.
  */
 function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -62,7 +70,7 @@ function mergeChannels(channels: TextChannel[], extra: TextChannel[]): TextChann
   return [...channels, ...extra.filter((c) => !known.has(c.id))];
 }
 
-/** Tela depois de entrar. Ela existe enquanto a conexão durar, e o cache junto com ela. */
+/** Tela depois de entrar. Ela continua aberta durante uma queda, e o cache junto com ela. */
 export function ChatLayout(props: ChatLayoutProps) {
   const [queryClient] = useState(createQueryClient);
   return (
@@ -73,7 +81,15 @@ export function ChatLayout(props: ChatLayoutProps) {
 }
 
 /** Canais na lateral, conversa do canal selecionado no centro. */
-function ChatScreen({ server, token, session, onLogout, onSessionExpired }: ChatLayoutProps) {
+function ChatScreen({
+  server,
+  token,
+  session,
+  connectionLost,
+  onLogout,
+  onSessionExpired,
+}: ChatLayoutProps) {
+  const queryClient = useQueryClient();
   const channelsQuery = useQuery({
     queryKey: ["channels"],
     queryFn: () => listChannels(server, token),
@@ -103,6 +119,17 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
   useEffect(() => {
     if (isUnauthorized(channelsQuery.error)) onSessionExpired();
   }, [channelsQuery.error, onSessionExpired]);
+
+  // Conectou de novo: busca o que faltou, sem sair da tela (ADR 0013). As páginas novas
+  // já trazem as mensagens guardadas, que deixariam um buraco depois de uma queda longa.
+  // Fica antes da assinatura, para não apagar o que chegar por ela.
+  const lastSession = useRef(session);
+  useEffect(() => {
+    if (lastSession.current === session) return;
+    lastSession.current = session;
+    setLiveMessages({});
+    queryClient.invalidateQueries();
+  }, [session, queryClient]);
 
   useEffect(() => {
     const onServerMessage = (msg: ServerMessage) => {
@@ -155,7 +182,8 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
     <div className="chat-layout">
       <aside className="chat-sidebar">
         <p role="status">
-          Conectado como <strong>{session.user.username}</strong>
+          {connectionLost ? "Sem conexão, entrou como" : "Conectado como"}{" "}
+          <strong>{session.user.username}</strong>
         </p>
 
         {!channels && channelsQuery.isFetching && <p>Carregando canais...</p>}
@@ -209,6 +237,18 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
       </aside>
 
       <section className="chat-main">
+        {connectionLost && (
+          <div className="connection-lost" role="alert">
+            <span>Conexão perdida. Reconectando...</span>
+            <button
+              type="button"
+              disabled={connectionLost.retrying}
+              onClick={connectionLost.onRetry}
+            >
+              Tentar de novo
+            </button>
+          </div>
+        )}
         {selected && (
           <>
             <h2># {selected.name}</h2>
@@ -225,6 +265,7 @@ function ChatScreen({ server, token, session, onLogout, onSessionExpired }: Chat
               key={`composer-${selected.id}`}
               channelName={selected.name}
               error={sendError}
+              offline={connectionLost !== undefined}
               onSend={(content) => {
                 setSendError(null);
                 session.send({ type: "send_message", channel_id: selected.id, content });

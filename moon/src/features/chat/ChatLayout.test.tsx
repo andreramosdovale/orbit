@@ -288,6 +288,97 @@ describe("ChatLayout", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  describe("reconexão", () => {
+    const GERAL_MESSAGES = `/channels/${GERAL.id}/messages`;
+
+    function page(ids: number[]) {
+      return () => jsonResponse(200, { messages: ids.map((id) => stored(id)), has_more: false });
+    }
+
+    function layout(session: Session, connectionLost?: { retrying: boolean; onRetry: () => void }) {
+      return (
+        <ChatLayout
+          server="http://host:7700"
+          token="a.b.c"
+          session={session}
+          connectionLost={connectionLost}
+          onLogout={() => {}}
+          onSessionExpired={() => {}}
+        />
+      );
+    }
+
+    it("com a conexão perdida, a faixa aparece e Enter não envia", async () => {
+      stubResponses(() => jsonResponse(200, [GERAL]));
+      const { session, send } = fakeSession();
+      const onRetry = vi.fn();
+      render(layout(session, { retrying: false, onRetry }));
+      await screen.findByRole("heading", { name: "# geral" });
+
+      expect(screen.getByRole("alert").textContent).toContain("Conexão perdida");
+      fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+      expect(onRetry).toHaveBeenCalledOnce();
+
+      const field = screen.getByRole("textbox", { name: "Mensagem para #geral" });
+      fireEvent.change(field, { target: { value: "oi" } });
+      fireEvent.keyDown(field, { key: "Enter" });
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("durante uma tentativa, Tentar de novo fica desativado", async () => {
+      stubResponses(() => jsonResponse(200, [GERAL]));
+      render(layout(fakeSession().session, { retrying: true, onRetry: () => {} }));
+      await screen.findByRole("heading", { name: "# geral" });
+
+      const button = screen.getByRole("button", { name: "Tentar de novo" }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+    });
+
+    it("a sessão nova busca de novo, mantém o canal e não repete mensagens", async () => {
+      const answers = [page([1]), page([1, 2, 3])];
+      const fetchMock = stubServer(
+        [() => jsonResponse(200, [GERAL, JOGOS]), () => jsonResponse(200, [GERAL, JOGOS])],
+        { [GERAL_MESSAGES]: () => (answers.shift() ?? page([]))() },
+      );
+      const first = fakeSession();
+      const { rerender } = render(layout(first.session));
+      await screen.findByText("guardada 1");
+      first.emit({ type: "new_message", message: stored(2) });
+      expect(screen.getByText("guardada 2")).toBeTruthy();
+
+      const second = fakeSession();
+      rerender(layout(second.session));
+
+      expect(await screen.findByText("guardada 3")).toBeTruthy();
+      expect(screen.getAllByText("guardada 2")).toHaveLength(1);
+      expect(channelButton("geral").getAttribute("aria-current")).toBe("true");
+      expect(historyCalls(fetchMock)).toEqual([GERAL_MESSAGES, GERAL_MESSAGES]);
+      expect(fetchMock.mock.calls.filter(([url]) => pathOf(url) === "/channels")).toHaveLength(2);
+
+      // A assinatura passou para a sessão nova, e o que chega por ela não se perde.
+      second.emit({ type: "new_message", message: { ...stored(4), content: "ao vivo 4" } });
+      expect(screen.getByText("ao vivo 4")).toBeTruthy();
+    });
+
+    it("o que a sessão nova entrega ao assinar não é apagado pela troca", async () => {
+      stubServer([() => jsonResponse(200, [GERAL]), () => jsonResponse(200, [GERAL])]);
+      const first = fakeSession();
+      const { rerender } = render(layout(first.session));
+      await screen.findByRole("heading", { name: "# geral" });
+
+      const second = fakeSession();
+      const subscribe = second.session.subscribe;
+      second.session.subscribe = (handler) => {
+        const unsubscribe = subscribe(handler);
+        handler({ type: "new_message", message: { ...stored(9), content: "ao vivo 9" } });
+        return unsubscribe;
+      };
+      rerender(layout(second.session));
+
+      expect(await screen.findByText("ao vivo 9")).toBeTruthy();
+    });
+  });
+
   describe("presença", () => {
     const ANA = { id: 7, username: "ana" };
     const BETO = { id: 8, username: "beto" };
