@@ -17,6 +17,8 @@ export default defineConfig(() => ({
     globals: true,
     unstubGlobals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Os testes do design system leem o CSS com `?raw`; sem isto, ele chega vazio.
+    css: { include: /\.css/ },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

@@ -1,3 +1,4 @@
+import { Avatar, Button, SectionTitle, Surface, VisuallyHidden } from "../../ds";
 import type { VoiceState } from "./useVoiceRoom";
 
 interface VoicePanelProps {
@@ -16,8 +17,8 @@ const STATUS_TEXT: Partial<Record<VoiceState["status"], string>> = {
 export function VoicePanel({ channelName, state, onToggleMute, onLeave }: VoicePanelProps) {
   const statusText = STATUS_TEXT[state.status];
   return (
-    <section className="voice-panel" aria-label="Sala de voz atual">
-      <h3>Em {channelName}</h3>
+    <Surface as="section" tone="overlay" className="voice-panel" aria-label="Sala de voz atual">
+      <SectionTitle>Em {channelName}</SectionTitle>
       {statusText && <p className="voice-status">{statusText}</p>}
       <ul>
         {state.participants.map((participant) => (
@@ -25,27 +26,30 @@ export function VoicePanel({ channelName, state, onToggleMute, onLeave }: VoiceP
             key={participant.id}
             className={participant.speaking ? "voice-participant speaking" : "voice-participant"}
           >
-            {participant.name}
-            {participant.isLocal && " (você)"}
-            {participant.muted && (
-              <span className="voice-muted" aria-hidden="true">
-                {" "}
-                🔇
-              </span>
-            )}
-            {participant.speaking && <span className="visually-hidden"> (falando)</span>}
-            {participant.muted && <span className="visually-hidden"> (silenciado)</span>}
+            <Avatar name={participant.name} size="sm" />
+            <span>
+              {participant.name}
+              {participant.isLocal && " (você)"}
+              {participant.muted && (
+                <span className="voice-muted" aria-hidden="true">
+                  {" "}
+                  🔇
+                </span>
+              )}
+            </span>
+            {participant.speaking && <VisuallyHidden> (falando)</VisuallyHidden>}
+            {participant.muted && <VisuallyHidden> (silenciado)</VisuallyHidden>}
           </li>
         ))}
       </ul>
       <div className="voice-actions">
-        <button type="button" disabled={state.status !== "connected"} onClick={onToggleMute}>
+        <Button size="sm" disabled={state.status !== "connected"} onClick={onToggleMute}>
           {state.muted ? "Ativar microfone" : "Silenciar"}
-        </button>
-        <button type="button" onClick={onLeave}>
+        </Button>
+        <Button size="sm" onClick={onLeave}>
           Sair da sala
-        </button>
+        </Button>
       </div>
-    </section>
+    </Surface>
   );
 }

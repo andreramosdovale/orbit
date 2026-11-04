@@ -1,0 +1,15 @@
+.ds-surface {
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+}
+
+.ds-surface-raised {
+  background-color: var(--surface-raised);
+}
+
+/* Dentro de outra superfície, o raio menor mantém as curvas concêntricas. */
+.ds-surface-overlay {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-overlay);
+}

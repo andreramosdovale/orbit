@@ -1,0 +1,12 @@
+.ds-status-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background-color: var(--text-muted);
+}
+
+.ds-status-dot-online {
+  background-color: var(--success);
+}

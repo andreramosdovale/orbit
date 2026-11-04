@@ -14,3 +14,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 | 008 | [Presença (online/offline)](008-presenca.md) | 2 | Concluída |
 | 009 | [Reconexão automática](009-reconexao-automatica.md) | 2 | Concluída |
 | 010 | [Salas de voz](010-salas-de-voz.md) | 3 | Em andamento |
+| 011 | [Design system do `moon`](011-design-system.md) | — | Concluída |

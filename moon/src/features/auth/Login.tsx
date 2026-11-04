@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { ApiError } from "../../api/http";
+import { Alert, Button, Surface, TextField } from "../../ds";
 import { login } from "./api";
 import { loadServer, saveServer } from "./storage";
 
@@ -38,60 +39,46 @@ export function Login({ initialUsername = "", notice, onLoggedIn, onCreateAccoun
   const sending = status.kind === "sending";
 
   return (
-    <form className="auth-form" onSubmit={onSubmit}>
+    <Surface as="form" className="auth-form" onSubmit={onSubmit}>
       <h1>Entrar</h1>
 
-      {notice && (
-        <p className="notice" role="status">
-          {notice}
-        </p>
-      )}
+      {notice && <Alert tone="success">{notice}</Alert>}
 
-      <label>
-        Servidor
-        <input
-          type="url"
-          required
-          placeholder="http://100.x.y.z:7700"
-          value={server}
-          onChange={(e) => setServer(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Servidor"
+        type="url"
+        required
+        placeholder="http://100.x.y.z:7700"
+        value={server}
+        onChange={(e) => setServer(e.target.value)}
+      />
 
-      <label>
-        Usuário
-        <input
-          required
-          autoComplete="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Usuário"
+        required
+        autoComplete="username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
 
-      <label>
-        Senha
-        <input
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Senha"
+        type="password"
+        required
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
 
-      <button type="submit" disabled={sending}>
+      <Button type="submit" variant="primary" disabled={sending}>
         {sending ? "Entrando..." : "Entrar"}
-      </button>
+      </Button>
 
-      {status.kind === "error" && (
-        <p className="error" role="alert">
-          {status.message}
-        </p>
-      )}
+      {status.kind === "error" && <Alert>{status.message}</Alert>}
 
-      <button type="button" className="link" onClick={onCreateAccount}>
+      <Button variant="link" onClick={onCreateAccount}>
         Criar conta
-      </button>
-    </form>
+      </Button>
+    </Surface>
   );
 }

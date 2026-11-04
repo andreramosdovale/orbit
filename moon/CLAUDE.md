@@ -9,6 +9,7 @@ src/                     # front (React)
 ├── main.tsx
 ├── App.tsx              # navegação entre telas e ciclo da conexão
 ├── api/http.ts          # request() e ApiError: toda chamada REST ao sun passa por aqui
+├── ds/                  # design system: tokens e componentes, importados por ds/index.ts (ADR 0016)
 ├── features/auth/       # api.ts (fetch no sun), session.ts (/ws autenticado), storage.ts (servidor e token), Login, Register, Connected
 ├── features/chat/       # api.ts (canais e histórico), ChatLayout (tela depois de entrar e cache), ChannelMessages (histórico + ao vivo), MessageList, Composer, MemberList (presença)
 ├── features/voice/      # api.ts, room.ts (único lugar que usa o livekit-client), useVoiceRoom, VoiceSection, VoicePanel
@@ -43,6 +44,7 @@ Tipos do protocolo (`orbit_shared`) que o front usa direto, como as mensagens do
 
 - React 19 com componentes funcionais e hooks. TypeScript `strict`.
 - O front fala direto com o `sun` (HTTP/WebSocket) e com o LiveKit (SDK JS) a partir do webview. O core Rust fica para o que o webview não consegue fazer bem (captura nativa, APIs do Windows).
+- **Aparência:** telas novas usam os componentes de `src/ds/`, e cor, raio e espaçamento vêm dos tokens de `ds/tokens.css`. O `App.css` guarda só o layout das telas. Visual arredondado e minimalista: controles em pílula, um único tom de destaque, profundidade por camadas de superfície, sem bordas de separação, sombras ou gradientes. Só entra no módulo o que uma tela usa. `ds/conventions.test.ts` falha se aparecer cor, raio ou controle solto fora do módulo.
 - Lint e formatação: Biome (`npm run lint`, `npm run format`). O hook formata automaticamente após cada edição.
 - **Chamadas ao `sun`:** em `features/<domínio>/api.ts`, usando `request()` de `api/http.ts` e os tipos de `bindings.ts`. Erros viram `ApiError` (`code` do `ApiErrorBody` ou `network`); a UI mostra o `message`, e um `unauthorized` encerra a sessão (`onSessionExpired`).
 - **Cache:** as chamadas de chat usam TanStack Query, com o `QueryClient` criado pelo `ChatLayout`, que continua aberto durante uma queda e invalida tudo quando a `Session` muda (ADR 0012 e 0013). O WebSocket não escreve no cache: as mensagens que chegam por ele ficam em estado do `ChatLayout` e são juntas às páginas por `id`, e a presença também fica nesse estado.
