@@ -151,6 +151,7 @@ async fn requires_auth() -> anyhow::Result<()> {
         (Method::POST, "/voice-channels"),
         (Method::POST, "/voice-channels/1/token"),
         (Method::POST, "/voice-channels/abc/token"),
+        (Method::POST, "/voice-channels/1/screen-token"),
     ] {
         let req = Request::builder()
             .method(method)
@@ -192,7 +193,7 @@ async fn token_grants() -> anyhow::Result<()> {
     assert_eq!(video["canPublishData"], false);
     assert_eq!(
         video["canPublishSources"],
-        serde_json::json!(["microphone", "screen_share"])
+        serde_json::json!(["microphone"])
     );
 
     let exp = claims["exp"].as_u64().expect("exp deveria ser um número");
@@ -200,6 +201,65 @@ async fn token_grants() -> anyhow::Result<()> {
     assert_eq!(exp - nbf, 600, "o token dura 10 minutos");
     assert!(nbf >= before && nbf <= sun::now());
     Ok(())
+}
+
+async fn post_path(state: &AppState, path: &str) -> anyhow::Result<JsonResponse> {
+    call(state, Method::POST, path, None::<&()>).await
+}
+
+#[tokio::test]
+async fn screen_token_grants() -> anyhow::Result<()> {
+    let state = state_with_keys().await?;
+
+    let res = post_path(&state, "/voice-channels/1/screen-token").await?;
+
+    assert_eq!(res.status, StatusCode::OK);
+    let join: VoiceJoin = res.json()?;
+    assert_eq!(join.livekit_port, 7999);
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.set_issuer(&[API_KEY]);
+    let claims = jsonwebtoken::decode::<Value>(
+        &join.token,
+        &DecodingKey::from_secret(API_SECRET.as_bytes()),
+        &validation,
+    )?
+    .claims;
+
+    assert_eq!(claims["sub"], "7#screen");
+    assert_eq!(claims["name"], "fulano");
+    let video = &claims["video"];
+    assert_eq!(video["room"], "voice-1");
+    assert_eq!(video["roomJoin"], true);
+    assert_eq!(video["canSubscribe"], false);
+    assert_eq!(video["canPublish"], true);
+    assert_eq!(video["canPublishData"], false);
+    assert_eq!(
+        video["canPublishSources"],
+        serde_json::json!(["screen_share", "screen_share_audio"])
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn screen_token_errors() -> anyhow::Result<()> {
+    let with_keys = state_with_keys().await?;
+    assert_error(
+        &post_path(&with_keys, "/voice-channels/999/screen-token").await?,
+        StatusCode::NOT_FOUND,
+        ApiErrorCode::UnknownChannel,
+    )?;
+    assert_error(
+        &post_path(&with_keys, "/voice-channels/abc/screen-token").await?,
+        StatusCode::BAD_REQUEST,
+        ApiErrorCode::InvalidRequest,
+    )?;
+
+    let without_keys = state().await?;
+    assert_error(
+        &post_path(&without_keys, "/voice-channels/1/screen-token").await?,
+        StatusCode::SERVICE_UNAVAILABLE,
+        ApiErrorCode::VoiceUnavailable,
+    )
 }
 
 #[tokio::test]

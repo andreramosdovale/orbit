@@ -1,0 +1,267 @@
+//! Testes da captura. Os marcados com `ignore` precisam de áudio e de uma área de trabalho:
+//! rode com `cargo test -p moon --test capture -- --ignored --test-threads=1`.
+
+use moon_lib::capture::audio::{self, AudioChunker};
+use moon_lib::capture::video::{self, FrameSink, fit_size};
+use moon_lib::capture::{CaptureTarget, list_targets, offered_targets};
+use std::f64::consts::TAU;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+fn window(title: &str, process_id: u32) -> CaptureTarget {
+    CaptureTarget::Window {
+        id: "1".into(),
+        title: title.into(),
+        app: "app.exe".into(),
+        process_id,
+    }
+}
+
+#[test]
+fn offered_targets_hides_the_app_itself_and_untitled_windows() {
+    let screen = CaptureTarget::Screen {
+        index: 1,
+        name: "Tela".into(),
+    };
+    let offered = offered_targets(
+        vec![
+            window("Jogo", 10),
+            window("Orbit", 99),
+            window("   ", 10),
+            screen.clone(),
+        ],
+        99,
+    );
+    assert_eq!(offered, vec![window("Jogo", 10), screen]);
+}
+
+#[test]
+fn fit_size_keeps_small_sizes_and_shrinks_large_ones() {
+    assert_eq!(fit_size(1280, 720), (1280, 720));
+    assert_eq!(fit_size(1920, 1080), (1920, 1080));
+    assert_eq!(fit_size(3840, 2160), (1920, 1080));
+    assert_eq!(fit_size(1920, 1200), (1728, 1080));
+    assert_eq!(fit_size(1281, 721), (1280, 720));
+    assert_eq!(fit_size(1, 1), (2, 2));
+}
+
+#[test]
+fn chunker_makes_frames_of_ten_ms_and_keeps_the_rest() {
+    let mut chunker = AudioChunker::default();
+    let samples = (audio::SAMPLES_PER_CHANNEL * audio::CHANNELS) as usize;
+    let bytes: Vec<u8> = (0..samples + 1)
+        .flat_map(|_| 0.5f32.to_le_bytes())
+        .collect();
+
+    chunker.queue_mut().extend(&bytes[..bytes.len() - 8]);
+    assert!(chunker.next_frame().is_none(), "ainda não tem 10 ms");
+
+    chunker.queue_mut().extend(&bytes[bytes.len() - 8..]);
+    let frame = chunker.next_frame().expect("deveria ter um bloco");
+    assert_eq!(frame.len(), samples);
+    assert_eq!(frame[0], (0.5 * f32::from(i16::MAX)) as i16);
+    assert!(chunker.next_frame().is_none(), "sobrou menos de um bloco");
+}
+
+#[test]
+fn chunker_limits_loud_samples() {
+    let mut chunker = AudioChunker::default();
+    let samples = (audio::SAMPLES_PER_CHANNEL * audio::CHANNELS) as usize;
+    for _ in 0..samples {
+        chunker.queue_mut().extend(2.0f32.to_le_bytes());
+    }
+    assert_eq!(chunker.next_frame().expect("bloco")[0], i16::MAX);
+}
+
+/// Um WAV de um tom baixo: serve para o detector, e quase não se ouve.
+fn write_tone(path: &Path, frequency: f64) {
+    const RATE: u32 = 48_000;
+    let samples: Vec<i16> = (0..RATE)
+        .map(|n| (f64::sin(TAU * frequency * f64::from(n) / f64::from(RATE)) * 400.0) as i16)
+        .collect();
+    let data_len = (samples.len() * 2) as u32;
+    let mut wav = Vec::with_capacity(44 + data_len as usize);
+    wav.extend(b"RIFF");
+    wav.extend((36 + data_len).to_le_bytes());
+    wav.extend(b"WAVEfmt ");
+    wav.extend(16u32.to_le_bytes());
+    wav.extend(1u16.to_le_bytes());
+    wav.extend(1u16.to_le_bytes());
+    wav.extend(RATE.to_le_bytes());
+    wav.extend((RATE * 2).to_le_bytes());
+    wav.extend(2u16.to_le_bytes());
+    wav.extend(16u16.to_le_bytes());
+    wav.extend(b"data");
+    wav.extend(data_len.to_le_bytes());
+    for sample in samples {
+        wav.extend(sample.to_le_bytes());
+    }
+    fs::write(path, wav).unwrap_or_else(|err| panic!("escrever o WAV: {err}"));
+}
+
+fn fixture_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("orbit-capture-{name}-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap_or_else(|err| panic!("criar a pasta: {err}"));
+    dir
+}
+
+struct Killed(Child);
+impl Drop for Killed {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn powershell(script: &str) -> Killed {
+    Killed(
+        Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap_or_else(|err| panic!("abrir o PowerShell: {err}")),
+    )
+}
+
+fn play_tone(path: &Path) -> Killed {
+    powershell(&format!(
+        "$p = New-Object System.Media.SoundPlayer '{}'; $p.PlayLooping(); Start-Sleep 60",
+        path.display()
+    ))
+}
+
+/// A força da frequência no sinal (algoritmo de Goertzel), só no canal esquerdo.
+fn strength(samples: &[i16], frequency: f64) -> f64 {
+    let omega = TAU * frequency / f64::from(audio::SAMPLE_RATE);
+    let coeff = 2.0 * omega.cos();
+    let (mut previous, mut before) = (0.0, 0.0);
+    let mut count: f64 = 0.0;
+    for frame in samples.as_chunks::<2>().0 {
+        let value = f64::from(frame[0]) + coeff * previous - before;
+        before = previous;
+        previous = value;
+        count += 1.0;
+    }
+    (before * before + previous * previous - coeff * previous * before).sqrt() / count.max(1.0)
+}
+
+/// Prova da spec 013: só o áudio do processo escolhido é capturado.
+#[test]
+#[ignore = "precisa de um dispositivo de áudio"]
+fn loopback_captures_only_the_chosen_process() {
+    let dir = fixture_dir("audio");
+    let (chosen_wav, other_wav) = (dir.join("chosen.wav"), dir.join("other.wav"));
+    write_tone(&chosen_wav, 1000.0);
+    write_tone(&other_wav, 1500.0);
+
+    let chosen = play_tone(&chosen_wav);
+    let _other = play_tone(&other_wav);
+    std::thread::sleep(Duration::from_secs(2));
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let captured = Arc::new(Mutex::new(Vec::<i16>::new()));
+    let (thread_stop, thread_captured) = (stop.clone(), captured.clone());
+    let process_id = chosen.0.id();
+    let thread = std::thread::spawn(move || {
+        audio::capture_process(process_id, &thread_stop, |frame| {
+            thread_captured.lock().expect("trava").extend(frame);
+        })
+    });
+    std::thread::sleep(Duration::from_secs(4));
+    stop.store(true, Ordering::Relaxed);
+    thread.join().expect("thread").expect("captura");
+
+    let samples = captured.lock().expect("trava");
+    let (wanted, unwanted) = (strength(&samples, 1000.0), strength(&samples, 1500.0));
+    println!(
+        "amostras={} 1000Hz={wanted:.1} 1500Hz={unwanted:.1}",
+        samples.len()
+    );
+    assert!(samples.len() > 48_000, "deveria ter áudio");
+    assert!(wanted > 20.0, "o tom escolhido deveria estar no áudio");
+    assert!(
+        unwanted < wanted / 20.0,
+        "o outro processo não deveria entrar no áudio"
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+const FIXTURE_TITLE: &str = "Orbit Janela de Teste";
+
+fn open_fixture_window() -> Killed {
+    powershell(&format!(
+        "Add-Type -AssemblyName System.Windows.Forms; \
+         $f = New-Object Windows.Forms.Form; $f.Text = '{FIXTURE_TITLE}'; $f.Width = 640; $f.Height = 360; \
+         $t = New-Object Windows.Forms.Timer; $t.Interval = 50; $script:n = 0; \
+         $t.Add_Tick({{ $script:n = ($script:n + 8) % 255; $f.BackColor = [Drawing.Color]::FromArgb(0, $script:n, 0) }}); \
+         $t.Start(); [Windows.Forms.Application]::Run($f)"
+    ))
+}
+
+fn find_fixture() -> Option<CaptureTarget> {
+    list_targets().into_iter().find(
+        |target| matches!(target, CaptureTarget::Window { title, .. } if title == FIXTURE_TITLE),
+    )
+}
+
+/// Prova da spec 013: a janela chega em quadros, e fechá-la avisa o fim.
+#[test]
+#[ignore = "precisa de uma área de trabalho"]
+fn window_capture_delivers_frames_and_reports_closing() {
+    let mut fixture = open_fixture_window();
+    let start = Instant::now();
+    let target = loop {
+        if let Some(target) = find_fixture() {
+            break target;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(20),
+            "a janela de teste não apareceu"
+        );
+        std::thread::sleep(Duration::from_millis(200));
+    };
+
+    let frames = Arc::new(AtomicU64::new(0));
+    let size = Arc::new(Mutex::new((0, 0)));
+    let closed = Arc::new(AtomicBool::new(false));
+    let (on_frames, on_size, on_closed) = (frames.clone(), size.clone(), closed.clone());
+    let capture = video::start(
+        &target,
+        FrameSink {
+            on_frame: Box::new(move |buffer| {
+                use livekit::webrtc::prelude::VideoBuffer;
+                on_frames.fetch_add(1, Ordering::Relaxed);
+                *on_size.lock().expect("trava") = (buffer.width(), buffer.height());
+            }),
+            on_ended: Some(Box::new(move |_| on_closed.store(true, Ordering::SeqCst))),
+        },
+    )
+    .expect("iniciar a captura");
+
+    std::thread::sleep(Duration::from_secs(3));
+    let count = frames.load(Ordering::Relaxed);
+    let measured = *size.lock().expect("trava");
+    println!("quadros em 3s={count} tamanho={measured:?}");
+    assert!(count > 10, "deveria receber quadros");
+    assert!(
+        measured.0 >= 600 && measured.1 >= 300,
+        "tamanho inesperado: {measured:?}"
+    );
+
+    let _ = fixture.0.kill();
+    let _ = fixture.0.wait();
+    let start = Instant::now();
+    while !closed.load(Ordering::SeqCst) && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        closed.load(Ordering::SeqCst),
+        "fechar a janela deveria avisar o fim"
+    );
+    capture.stop();
+}

@@ -22,6 +22,7 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 | `GET` | `/channels/{id}/messages` | `Bearer` | `200` + `MessagePage` | Histórico de um canal, em páginas ([spec 007](specs/007-historico-paginado.md)) |
 | `GET` | `/voice-channels` | `Bearer` | `200` + `VoiceChannel[]` | Lista as salas de voz ([spec 010](specs/010-salas-de-voz.md)) |
 | `POST` | `/voice-channels` | `Bearer` | `201` + `VoiceChannel` | Cria uma sala de voz |
+| `POST` | `/voice-channels/{id}/screen-token` | `Bearer` | `200` + `VoiceJoin` | Token para transmitir na sala |
 | `POST` | `/voice-channels/{id}/token` | `Bearer` | `200` + `VoiceJoin` | Token para entrar na sala pelo LiveKit |
 
 Corpos HTTP acima de **16 KiB** (`sun::MAX_BODY_SIZE`) são recusados. O CORS só libera as origens do `moon`: as do build (`sun::ALLOWED_ORIGINS`) e `http://localhost` nas portas de dev (`sun::DEV_PORTS`, 1420 a 1439).
@@ -118,8 +119,10 @@ Parâmetro opcional `before` (id de mensagem). Sucesso: `200` com `MessagePage`,
 ```
 
 - O `moon` monta o endereço como `ws://<host do servidor>:<livekit_port>`, porque o `sun` não sabe por qual endereço cada amigo o alcança.
-- O token é um JWT HS256 assinado com o segredo do LiveKit ([ADR 0014](decisions/0014-livekit-no-host.md)) e dura 10 minutos. Claims: `iss` (chave), `sub` (id do usuário), `name` (`username`), `nbf`, `exp` e `video`, com `room` (`voice-<id>`), `roomJoin`, `canSubscribe` e `canPublish` ligados, `canPublishData` desligado e `canPublishSources: ["microphone", "screen_share"]` ([spec 012](specs/012-transmissao-de-tela.md)), sem áudio da tela.
+- O token é um JWT HS256 assinado com o segredo do LiveKit ([ADR 0014](decisions/0014-livekit-no-host.md)) e dura 10 minutos. Claims: `iss` (chave), `sub` (id do usuário), `name` (`username`), `nbf`, `exp` e `video`, com `room` (`voice-<id>`), `roomJoin`, `canSubscribe` e `canPublish` ligados, `canPublishData` desligado e `canPublishSources: ["microphone"]`.
 - Sem as chaves do LiveKit, a resposta é `503 voice_unavailable`, e o resto do servidor funciona.
+
+`POST /voice-channels/{id}/screen-token` funciona igual e devolve o token da transmissão ([spec 013](specs/013-transmissao-nativa.md)): `sub` é `<id do usuário>#screen`, `canSubscribe` é desligado e `canPublishSources` é `["screen_share", "screen_share_audio"]`.
 
 ### Erros da API REST
 
@@ -217,3 +220,8 @@ Gerados em `moon/src/bindings.ts` como `commands.*`.
 | Comando | Retorno | Descrição |
 |---|---|---|
 | `appVersion()` | `string` | Versão do app |
+| `listCaptureTargets()` | `CaptureTarget[]` | Janelas e telas que dá para transmitir, sem as do próprio Orbit |
+| `startScreenShare(target, url, token)` | `Result<null, string>` | Começa a transmitir pelo core Rust |
+| `stopScreenShare()` | `Result<null, string>` | Para de transmitir |
+
+Evento do core para o front, em `events.screenShareEnded`: `{ reason }`, com `target_closed`, `connection_lost` ou `failed`, quando a transmissão acaba sem ter sido parada.

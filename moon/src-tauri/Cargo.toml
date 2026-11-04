@@ -23,10 +23,15 @@ serde_json.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 
-# A mesma versão usada pelo Tauri: ao atualizá-lo, acompanhe (ADR 0015).
 [target.'cfg(windows)'.dependencies]
+# A mesma versão usada pelo Tauri: ao atualizá-lo, acompanhe (ADR 0015).
 webview2-com = "0.39"
+livekit = "0.10"
+windows-capture = "2"
+wasapi = "0.26"
 
 [lints]
 workspace = true

@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CaptureTarget, EndReason } from "../../bindings";
+import type { NativeShare } from "./nativeShare";
 import { type VoiceEvents, type VoiceParticipant, type VoiceRoom, VoiceRoomError } from "./room";
 import { useVoiceRoom } from "./useVoiceRoom";
 
@@ -21,8 +23,6 @@ function jsonResponse(status: number, body: unknown): Response {
 function fakeRoom() {
   return {
     setMuted: vi.fn().mockResolvedValue(undefined),
-    startScreenShare: vi.fn().mockResolvedValue(true),
-    stopScreenShare: vi.fn().mockResolvedValue(undefined),
     watchScreen: vi.fn(),
     stopWatchingScreen: vi.fn(),
     setScreenVideo: vi.fn(),
@@ -30,10 +30,37 @@ function fakeRoom() {
   };
 }
 
-function setup(connect = vi.fn(async (): Promise<VoiceRoom> => fakeRoom())) {
+const GAME: CaptureTarget = {
+  kind: "window",
+  id: "10",
+  title: "Jogo",
+  app: "jogo.exe",
+  process_id: 5,
+};
+
+function fakeShare() {
+  let ended: (reason: EndReason) => void = () => {};
+  const unlisten = vi.fn();
+  return {
+    listTargets: vi.fn().mockResolvedValue([GAME]),
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    onEnded: vi.fn(async (listener: (reason: EndReason) => void) => {
+      ended = listener;
+      return unlisten;
+    }),
+    unlisten,
+    end: (reason: EndReason) => ended(reason),
+  } satisfies NativeShare & Record<string, unknown>;
+}
+
+function setup(
+  connect = vi.fn(async (): Promise<VoiceRoom> => fakeRoom()),
+  share: NativeShare = fakeShare(),
+) {
   const onSessionExpired = vi.fn();
   const view = renderHook(() =>
-    useVoiceRoom({ server: SERVER, token: "a.b.c", onSessionExpired, connect }),
+    useVoiceRoom({ server: SERVER, token: "a.b.c", onSessionExpired, connect, share }),
   );
   return { ...view, connect, onSessionExpired };
 }
@@ -197,73 +224,165 @@ describe("useVoiceRoom", () => {
 
   describe("transmissão de tela", () => {
     /** Entra na sala e guarda os eventos, para simular o que vem do LiveKit. */
-    async function joined(room = fakeRoom()) {
+    async function joined(room = fakeRoom(), share: NativeShare = fakeShare()) {
       let events = {} as VoiceEvents;
       const connect = vi.fn(async (_url: string, _token: string, received: VoiceEvents) => {
         events = received;
         return room;
       });
-      const view = setup(connect as never);
+      const view = setup(connect as never, share);
       await act(() => view.result.current.join(1));
       return { ...view, room, emit: () => events };
     }
 
-    it("transmitir chama a sala, e o estado vem da lista de pessoas", async () => {
-      const { result, room, emit } = await joined();
+    it("transmitir abre o seletor, e escolher começa com o token próprio", async () => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
 
       await act(() => result.current.toggleShare());
-      expect(room.startScreenShare).toHaveBeenCalledOnce();
-      expect(result.current.state.sharePending).toBe(false);
-      expect(result.current.sharing).toBe(false);
+      expect(result.current.state.shareTargets).toEqual([GAME]);
+      expect(share.start).not.toHaveBeenCalled();
 
-      act(() => emit().onParticipants([{ ...ANA, sharing: true }]));
+      await act(() => result.current.startShare(GAME));
+
+      expect(share.start).toHaveBeenCalledWith(GAME, "ws://host:7999", "x.y.z");
+      const [url] = vi.mocked(fetch).mock.lastCall as [string];
+      expect(url).toBe("http://host:7700/voice-channels/1/screen-token");
       expect(result.current.sharing).toBe(true);
-
-      await act(() => result.current.toggleShare());
-      expect(room.stopScreenShare).toHaveBeenCalledOnce();
+      expect(result.current.state.shareTargets).toBeNull();
     });
 
-    it("cancelar o seletor não mostra erro", async () => {
-      const room = fakeRoom();
-      room.startScreenShare.mockResolvedValue(false);
-      const { result } = await joined(room);
+    it("cancelar o seletor não transmite nem mostra erro", async () => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
+
+      await act(() => result.current.toggleShare());
+      act(() => result.current.cancelShare());
+
+      expect(result.current.state.shareTargets).toBeNull();
+      expect(result.current.state.error).toBeNull();
+      expect(share.start).not.toHaveBeenCalled();
+    });
+
+    it("parar encerra no core e para de ouvir", async () => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
+      await act(() => result.current.startShare(GAME));
 
       await act(() => result.current.toggleShare());
 
-      expect(result.current.state.error).toBeNull();
+      expect(share.stop).toHaveBeenCalledOnce();
+      expect(share.unlisten).toHaveBeenCalledOnce();
       expect(result.current.sharing).toBe(false);
     });
 
-    it("uma falha ao transmitir mostra a mensagem", async () => {
-      const room = fakeRoom();
-      room.startScreenShare.mockRejectedValue(new VoiceRoomError("Não foi possível transmitir."));
-      const { result } = await joined(room);
+    it("uma falha ao transmitir mostra a mensagem do core", async () => {
+      const share = fakeShare();
+      share.start.mockRejectedValue(new Error("O servidor recusou a transmissão."));
+      const { result } = await joined(fakeRoom(), share);
 
-      await act(() => result.current.toggleShare());
+      await act(() => result.current.startShare(GAME));
 
-      expect(result.current.state.error).toBe("Não foi possível transmitir.");
+      expect(result.current.state.error).toBe("O servidor recusou a transmissão.");
+      expect(result.current.sharing).toBe(false);
       expect(result.current.state.sharePending).toBe(false);
     });
 
-    it("sair da sala com o seletor aberto não mexe no estado depois", async () => {
-      const room = fakeRoom();
-      let finish: (started: boolean) => void = () => {};
-      room.startScreenShare.mockReturnValue(
-        new Promise((resolve) => {
+    it("listar as janelas com erro mostra a mensagem", async () => {
+      const share = fakeShare();
+      share.listTargets.mockRejectedValue(new Error("x"));
+      const { result } = await joined(fakeRoom(), share);
+
+      await act(() => result.current.toggleShare());
+
+      expect(result.current.state.error).toBe("Não foi possível listar as janelas.");
+    });
+
+    it("um token recusado encerra a sessão", async () => {
+      const { result, onSessionExpired } = await joined();
+      vi.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse(401, { code: "unauthorized", message: "Token inválido." }),
+      );
+
+      await act(() => result.current.startShare(GAME));
+
+      expect(onSessionExpired).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      ["target_closed", null, "A janela transmitida foi fechada."],
+      ["connection_lost", "A transmissão caiu.", null],
+      ["failed", "A transmissão parou por um erro.", null],
+    ] as const)("o fim por %s avisa", async (reason, error, notice) => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
+      await act(() => result.current.startShare(GAME));
+
+      act(() => share.end(reason));
+
+      expect(result.current.sharing).toBe(false);
+      expect(result.current.state.error).toBe(error);
+      expect(result.current.state.notice).toBe(notice);
+      expect(share.stop).not.toHaveBeenCalled();
+    });
+
+    it("sair da sala encerra a transmissão", async () => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
+      await act(() => result.current.startShare(GAME));
+
+      act(() => result.current.leave());
+
+      expect(share.stop).toHaveBeenCalledOnce();
+      expect(result.current.sharing).toBe(false);
+    });
+
+    it("trocar de sala encerra a transmissão", async () => {
+      const share = fakeShare();
+      const { result } = await joined(fakeRoom(), share);
+      await act(() => result.current.startShare(GAME));
+
+      await act(() => result.current.join(2));
+
+      expect(share.stop).toHaveBeenCalledOnce();
+      expect(result.current.sharing).toBe(false);
+    });
+
+    it("desmontar encerra a transmissão", async () => {
+      const share = fakeShare();
+      const { result, unmount } = await joined(fakeRoom(), share);
+      await act(() => result.current.startShare(GAME));
+
+      unmount();
+
+      expect(share.stop).toHaveBeenCalledOnce();
+    });
+
+    it("sair da sala enquanto a transmissão começa também a encerra", async () => {
+      const share = fakeShare();
+      let finish = () => {};
+      share.start.mockReturnValue(
+        new Promise<void>((resolve) => {
           finish = resolve;
         }),
       );
-      const { result } = await joined(room);
-
-      act(() => {
-        result.current.toggleShare();
+      const { result } = await joined(fakeRoom(), share);
+      let starting = Promise.resolve();
+      await act(async () => {
+        starting = result.current.startShare(GAME);
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve));
       });
-      expect(result.current.state.sharePending).toBe(true);
-      act(() => result.current.leave());
-      await act(async () => finish(true));
 
+      act(() => result.current.leave());
+      await act(async () => {
+        finish();
+        await starting;
+      });
+
+      expect(share.stop).toHaveBeenCalled();
+      expect(result.current.sharing).toBe(false);
       expect(result.current.state.status).toBe("idle");
-      expect(result.current.state.sharePending).toBe(false);
     });
 
     it("assistir e parar de assistir chamam a sala", async () => {

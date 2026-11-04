@@ -1,6 +1,6 @@
 # 012. Transmissão de tela (v1, pelo webview)
 
-- **Status:** Em andamento
+- **Status:** Substituída pela [spec 013](013-transmissao-nativa.md), que removeu a captura pelo webview antes do teste com a tela real
 - **Fase:** 4 (ver `docs/roadmap.md`)
 
 ## Objetivo

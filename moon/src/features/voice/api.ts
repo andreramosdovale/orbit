@@ -27,6 +27,18 @@ export function requestVoiceToken(
   });
 }
 
+/** `POST /voice-channels/{id}/screen-token`: o token da transmissão, que o core Rust usa. */
+export function requestScreenToken(
+  server: string,
+  token: string,
+  channelId: number,
+): Promise<VoiceJoin> {
+  return request<VoiceJoin>(server, `/voice-channels/${channelId}/screen-token`, {
+    method: "POST",
+    token,
+  });
+}
+
 /** O LiveKit roda no mesmo host do `sun`: `http://host:7700` + 7880 → `ws://host:7880`. */
 export function livekitUrl(server: string, port: number): string {
   const { protocol, hostname } = new URL(normalizeServerUrl(server));

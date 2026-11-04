@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createVoiceChannel, listVoiceChannels, livekitUrl, requestVoiceToken } from "./api";
+import {
+  createVoiceChannel,
+  listVoiceChannels,
+  livekitUrl,
+  requestScreenToken,
+  requestVoiceToken,
+} from "./api";
 
 const SERVER = "http://host:7700";
 
@@ -19,6 +25,17 @@ describe("salas de voz", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("http://host:7700/voice-channels");
     expect(init.method).toBe("GET");
+    expect(init.headers.Authorization).toBe("Bearer a.b.c");
+  });
+
+  it("requestScreenToken usa a rota da transmissão", async () => {
+    const fetchMock = stubFetch(200, { token: "x.y.z", livekit_port: 7880 });
+
+    await requestScreenToken(SERVER, "a.b.c", 3);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://host:7700/voice-channels/3/screen-token");
+    expect(init.method).toBe("POST");
     expect(init.headers.Authorization).toBe("Bearer a.b.c");
   });
 

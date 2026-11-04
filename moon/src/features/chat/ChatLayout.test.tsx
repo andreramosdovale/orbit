@@ -302,8 +302,6 @@ describe("ChatLayout", () => {
   describe("voz", () => {
     const VOICE_ROOM = {
       setMuted: vi.fn(),
-      startScreenShare: vi.fn(),
-      stopScreenShare: vi.fn(),
       watchScreen: vi.fn(),
       stopWatchingScreen: vi.fn(),
       setScreenVideo: vi.fn(),

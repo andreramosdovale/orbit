@@ -12,8 +12,11 @@ const DEFAULT_PORT: u16 = 7880;
 /// Quanto o token dura. Só precisa valer até conectar: depois, o SDK cuida da renovação.
 const TOKEN_TTL_SECS: u64 = 10 * 60;
 
-/// Microfone e tela, sem áudio da tela (spec 012). A câmera fica de fora.
-const PUBLISH_SOURCES: [&str; 2] = ["microphone", "screen_share"];
+/// Quem conversa só publica o microfone.
+const VOICE_SOURCES: [&str; 1] = ["microphone"];
+
+/// A transmissão é uma conexão à parte (ADR 0006), que só publica e nunca assina.
+const SCREEN_SOURCES: [&str; 2] = ["screen_share", "screen_share_audio"];
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LiveKitConfigError {
@@ -95,26 +98,62 @@ impl LiveKitConfig {
         self.port
     }
 
-    /// Token de `user` para a sala do canal `channel_id`. `now` em segundos Unix.
+    /// Token de `user` para conversar na sala do canal `channel_id`. `now` em segundos Unix.
     pub fn issue(
         &self,
         user: &User,
         channel_id: u32,
         now: u64,
     ) -> Result<String, jsonwebtoken::errors::Error> {
+        self.sign(
+            user,
+            user.id.to_string(),
+            channel_id,
+            now,
+            true,
+            &VOICE_SOURCES,
+        )
+    }
+
+    /// Token da transmissão de `user`, com a identidade `<id>#screen`.
+    pub fn issue_screen(
+        &self,
+        user: &User,
+        channel_id: u32,
+        now: u64,
+    ) -> Result<String, jsonwebtoken::errors::Error> {
+        self.sign(
+            user,
+            format!("{}#screen", user.id),
+            channel_id,
+            now,
+            false,
+            &SCREEN_SOURCES,
+        )
+    }
+
+    fn sign(
+        &self,
+        user: &User,
+        identity: String,
+        channel_id: u32,
+        now: u64,
+        can_subscribe: bool,
+        sources: &[&str],
+    ) -> Result<String, jsonwebtoken::errors::Error> {
         let claims = Claims {
             iss: &self.api_key,
-            sub: user.id.to_string(),
+            sub: identity,
             name: &user.username,
             nbf: now,
             exp: now.saturating_add(TOKEN_TTL_SECS),
             video: VideoGrant {
                 room: format!("voice-{channel_id}"),
                 room_join: true,
-                can_subscribe: true,
+                can_subscribe,
                 can_publish: true,
                 can_publish_data: false,
-                can_publish_sources: &PUBLISH_SOURCES,
+                can_publish_sources: sources,
             },
         };
         jsonwebtoken::encode(

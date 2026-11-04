@@ -20,6 +20,10 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/voice-channels", get(list_handler).post(create_handler))
         .route("/voice-channels/{id}/token", post(token_handler))
+        .route(
+            "/voice-channels/{id}/screen-token",
+            post(screen_token_handler),
+        )
 }
 
 #[tracing::instrument(skip_all)]
@@ -61,6 +65,34 @@ async fn token_handler(
     State(state): State<AppState>,
     channel_id: Result<Path<u32>, PathRejection>,
 ) -> Result<Json<VoiceJoin>, ApiError> {
+    let token = issue_token(&state, channel_id, |livekit, channel_id| {
+        livekit.issue(&user, channel_id, auth::now())
+    })
+    .await?;
+    tracing::debug!(user_id = user.id, "token de voz emitido");
+    Ok(Json(token))
+}
+
+#[tracing::instrument(skip_all)]
+async fn screen_token_handler(
+    AuthUser(user): AuthUser,
+    State(state): State<AppState>,
+    channel_id: Result<Path<u32>, PathRejection>,
+) -> Result<Json<VoiceJoin>, ApiError> {
+    let token = issue_token(&state, channel_id, |livekit, channel_id| {
+        livekit.issue_screen(&user, channel_id, auth::now())
+    })
+    .await?;
+    tracing::debug!(user_id = user.id, "token de transmissão emitido");
+    Ok(Json(token))
+}
+
+/// O que as duas rotas de token têm em comum: conferir o LiveKit e a sala.
+async fn issue_token(
+    state: &AppState,
+    channel_id: Result<Path<u32>, PathRejection>,
+    sign: impl FnOnce(&LiveKitConfig, u32) -> Result<String, jsonwebtoken::errors::Error>,
+) -> Result<VoiceJoin, ApiError> {
     let Path(channel_id) =
         channel_id.map_err(|rejection| ApiError::InvalidRequest(rejection.body_text()))?;
     let Some(livekit) = &state.livekit else {
@@ -69,12 +101,9 @@ async fn token_handler(
     if !channels::channel_exists(&state.db, channel_id).await? {
         return Err(ApiError::UnknownChannel);
     }
-    let token = livekit
-        .issue(&user, channel_id, auth::now())
-        .map_err(ApiError::internal)?;
-    tracing::debug!(channel_id, user_id = user.id, "token de voz emitido");
-    Ok(Json(VoiceJoin {
+    let token = sign(livekit, channel_id).map_err(ApiError::internal)?;
+    Ok(VoiceJoin {
         token,
         livekit_port: livekit.port(),
-    }))
+    })
 }
