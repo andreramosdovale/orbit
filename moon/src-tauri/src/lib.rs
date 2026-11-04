@@ -2,8 +2,8 @@
 //! que também gera `src/bindings.ts` (ver docs/decisions/0005).
 
 use orbit_shared::{
-    ApiErrorBody, ClientMessage, CreateChannelRequest, LoginRequest, LoginResponse,
-    RegisterRequest, ServerMessage, TextChannel, User,
+    ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, LoginRequest, LoginResponse,
+    MessageRejectReason, RegisterRequest, ServerMessage, TextChannel, User,
 };
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
@@ -31,6 +31,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<LoginRequest>()
         .typ::<LoginResponse>()
         .typ::<TextChannel>()
+        .typ::<ChatMessage>()
+        .typ::<MessageRejectReason>()
         .typ::<CreateChannelRequest>()
         .typ::<ApiErrorBody>()
 }

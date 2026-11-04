@@ -15,6 +15,11 @@ pub enum ClientMessage {
         token: String,
     },
     Ping,
+    /// Envia uma mensagem a um canal. O autor sai da conexão autenticada.
+    SendMessage {
+        channel_id: u32,
+        content: String,
+    },
 }
 
 /// Mensagens enviadas pelo servidor via WebSocket (`/ws`).
@@ -29,6 +34,18 @@ pub enum ServerMessage {
     /// Autenticação recusada. O servidor fecha a conexão com o código 1008 logo depois.
     AuthError,
     Pong,
+    /// Mensagem nova, enviada a todas as conexões, inclusive a de quem enviou.
+    NewMessage {
+        message: ChatMessage,
+    },
+    /// Mensagem recusada, enviada só a quem tentou enviar.
+    MessageRejected {
+        reason: MessageRejectReason,
+    },
+    /// Canal novo, enviado a todas as conexões.
+    ChannelCreated {
+        channel: TextChannel,
+    },
 }
 
 /// Corpo de `POST /auth/register`: auto-cadastro de um usuário novo.
@@ -73,6 +90,31 @@ pub struct LoginResponse {
 pub struct TextChannel {
     pub id: u32,
     pub name: String,
+}
+
+/// Mensagem de texto de um canal.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ChatMessage {
+    pub id: u32,
+    pub channel_id: u32,
+    pub author: User,
+    pub content: String,
+    /// Horário do servidor, em UTC (ISO 8601).
+    pub created_at: String,
+}
+
+/// Por que o servidor recusou uma mensagem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "snake_case")]
+pub enum MessageRejectReason {
+    /// Conteúdo vazio ou acima de 2000 caracteres.
+    InvalidContent,
+    /// O canal não existe.
+    UnknownChannel,
+    /// Erro interno do servidor. Detalhes só no log do `sun`.
+    Internal,
 }
 
 /// Corpo de `POST /channels`.
@@ -169,6 +211,79 @@ mod tests {
         assert_eq!(
             serde_json::to_value(ServerMessage::AuthError).unwrap(),
             json!({ "type": "auth_error" })
+        );
+    }
+
+    fn sample_message() -> ChatMessage {
+        ChatMessage {
+            id: 1,
+            channel_id: 2,
+            author: User {
+                id: 3,
+                username: "fulano".into(),
+            },
+            content: "oi".into(),
+            created_at: "2026-11-03T12:00:00.000Z".into(),
+        }
+    }
+
+    #[test]
+    fn send_message_wire_format() {
+        let msg = ClientMessage::SendMessage {
+            channel_id: 2,
+            content: "oi".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(msg).unwrap(),
+            json!({ "type": "send_message", "channel_id": 2, "content": "oi" })
+        );
+    }
+
+    #[test]
+    fn new_message_wire_format() {
+        let msg = ServerMessage::NewMessage {
+            message: sample_message(),
+        };
+        assert_eq!(
+            serde_json::to_value(msg).unwrap(),
+            json!({
+                "type": "new_message",
+                "message": {
+                    "id": 1,
+                    "channel_id": 2,
+                    "author": { "id": 3, "username": "fulano" },
+                    "content": "oi",
+                    "created_at": "2026-11-03T12:00:00.000Z",
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn message_rejected_wire_format() {
+        for (reason, expected) in [
+            (MessageRejectReason::InvalidContent, "invalid_content"),
+            (MessageRejectReason::UnknownChannel, "unknown_channel"),
+            (MessageRejectReason::Internal, "internal"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(ServerMessage::MessageRejected { reason }).unwrap(),
+                json!({ "type": "message_rejected", "reason": expected })
+            );
+        }
+    }
+
+    #[test]
+    fn channel_created_wire_format() {
+        let msg = ServerMessage::ChannelCreated {
+            channel: TextChannel {
+                id: 2,
+                name: "jogos".into(),
+            },
+        };
+        assert_eq!(
+            serde_json::to_value(msg).unwrap(),
+            json!({ "type": "channel_created", "channel": { "id": 2, "name": "jogos" } })
         );
     }
 

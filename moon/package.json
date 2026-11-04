@@ -12,7 +12,8 @@
     "format": "biome check --write .",
     "check": "biome ci .",
     "tauri": "tauri",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:app": "node scripts/dev.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

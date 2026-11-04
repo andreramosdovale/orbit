@@ -9,27 +9,33 @@ mod ws;
 
 use std::future::Future;
 use std::net::SocketAddr;
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, header};
 use axum::{Router, routing::get};
+use orbit_shared::ServerMessage;
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
+use tokio::sync::broadcast;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 pub use auth::{Claims, JwtError, JwtKeys, SecretError, now};
 pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT};
 
+/// Quantas mensagens o `hub` guarda para quem está atrasado. Quem passa disso é desconectado.
+pub const HUB_CAPACITY: usize = 256;
+
 /// Tamanho máximo do corpo de uma requisição HTTP. A API só recebe JSON pequeno.
 pub const MAX_BODY_SIZE: usize = 16 * 1024;
 
-/// Origens do webview do `moon` liberadas no CORS: build (`tauri.localhost`) e dev (Vite).
-pub const ALLOWED_ORIGINS: [&str; 3] = [
-    "http://tauri.localhost",
-    "tauri://localhost",
-    "http://localhost:1420",
-];
+/// Origens do webview do `moon` no build. Em dev, ver [`DEV_PORTS`].
+pub const ALLOWED_ORIGINS: [&str; 2] = ["http://tauri.localhost", "tauri://localhost"];
+
+/// Portas de `http://localhost` liberadas no CORS: as que o Vite do `moon` usa em dev
+/// (`moon/scripts/dev.mjs`), uma por instância aberta.
+pub const DEV_PORTS: RangeInclusive<u16> = 1420..=1439;
 
 /// Estado compartilhado por todas as rotas.
 #[derive(Clone)]
@@ -39,6 +45,28 @@ pub struct AppState {
     pub jwt: JwtKeys,
     /// Prazo para autenticar no `/ws`. Em produção, [`WS_AUTH_TIMEOUT`]; os testes usam um valor curto.
     pub ws_auth_timeout: Duration,
+    /// Publica para todas as conexões WebSocket autenticadas.
+    pub hub: broadcast::Sender<ServerMessage>,
+}
+
+impl AppState {
+    pub fn new(db: SqlitePool, jwt: JwtKeys) -> Self {
+        let (hub, _) = broadcast::channel(HUB_CAPACITY);
+        Self {
+            db,
+            jwt,
+            ws_auth_timeout: WS_AUTH_TIMEOUT,
+            hub,
+        }
+    }
+
+    /// Envia `msg` a todas as conexões autenticadas.
+    pub fn publish(&self, msg: ServerMessage) {
+        // Só falha sem nenhuma conexão aberta, e aí não há a quem entregar.
+        if self.hub.send(msg).is_err() {
+            tracing::debug!("nenhuma conexão para receber a publicação");
+        }
+    }
 }
 
 /// Monta o router com todas as rotas do servidor.
@@ -53,9 +81,22 @@ pub fn app(state: AppState) -> Router {
         .with_state(state)
 }
 
+fn is_allowed_origin(origin: &HeaderValue) -> bool {
+    let Ok(origin) = origin.to_str() else {
+        return false;
+    };
+    ALLOWED_ORIGINS.contains(&origin)
+        || origin
+            .strip_prefix("http://localhost:")
+            .and_then(|port| port.parse().ok())
+            .is_some_and(|port: u16| DEV_PORTS.contains(&port))
+}
+
 fn cors() -> CorsLayer {
     CorsLayer::new()
-        .allow_origin(ALLOWED_ORIGINS.map(HeaderValue::from_static))
+        .allow_origin(AllowOrigin::predicate(|origin, _| {
+            is_allowed_origin(origin)
+        }))
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
 }

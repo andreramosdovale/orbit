@@ -27,11 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let jwt = sun::JwtKeys::load_or_create(&db)
         .await
         .context("carregando o segredo do JWT")?;
-    let state = sun::AppState {
-        db,
-        jwt,
-        ws_auth_timeout: sun::WS_AUTH_TIMEOUT,
-    };
+    let state = sun::AppState::new(db, jwt);
 
     let addr = listen_addr()?;
     let listener = tokio::net::TcpListener::bind(addr)

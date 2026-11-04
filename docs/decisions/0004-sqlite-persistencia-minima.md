@@ -20,4 +20,4 @@ Um único arquivo **SQLite** (`orbit.db`) acessado via `sqlx`, com migrations ve
 
 - Backup = copiar um arquivo.
 - Escrita concorrente limitada, o que é irrelevante para ~10 usuários.
-- Política de retenção de mensagens fica para decidir na Fase 2.
+- A política de retenção de mensagens ficou para a Fase 2 e foi decidida no [ADR 0011](0011-retencao-de-mensagens.md).

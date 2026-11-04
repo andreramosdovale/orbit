@@ -24,7 +24,7 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 ## Fase 2: Chat de texto
 
 - [x] Canais de texto (criar/listar) ([spec 005](specs/005-canais-de-texto.md))
-- [ ] Mensagens em tempo real via WebSocket, persistidas
+- [x] Mensagens em tempo real via WebSocket, persistidas ([spec 006](specs/006-mensagens-em-tempo-real.md), [ADR 0011](decisions/0011-retencao-de-mensagens.md))
 - [ ] Histórico paginado
 - [ ] Presença (online/offline)
 

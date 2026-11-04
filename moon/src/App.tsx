@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { commands, type User } from "./bindings";
+import { commands } from "./bindings";
 import { Login } from "./features/auth/Login";
 import { Register } from "./features/auth/Register";
 import { connectSession, type Session, SessionError } from "./features/auth/session";
@@ -13,7 +13,7 @@ type View =
   | { kind: "login"; notice?: string; username?: string }
   | { kind: "register" }
   | { kind: "connecting" }
-  | { kind: "connected"; user: User; server: string; token: string }
+  | { kind: "connected"; session: Session; server: string; token: string }
   | { kind: "unavailable" };
 
 function initialView(): View {
@@ -58,7 +58,7 @@ function App() {
     connectSession(server, token, onDropped, controller.signal)
       .then((opened) => {
         session.current = opened;
-        setView({ kind: "connected", user: opened.user, server, token });
+        setView({ kind: "connected", session: opened, server, token });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
@@ -104,7 +104,7 @@ function App() {
         <ChatLayout
           server={view.server}
           token={view.token}
-          user={view.user}
+          session={view.session}
           onLogout={logout}
           onSessionExpired={expireSession}
         />

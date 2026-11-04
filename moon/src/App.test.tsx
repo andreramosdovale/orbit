@@ -73,7 +73,8 @@ describe("App", () => {
     fill("Usuário", "fulano");
     fill("Senha", "senha-boa-123");
     click("Entrar");
-    await screen.findByText("Conectando...");
+    // Espera o socket, não o texto: "Conectando..." aparece antes do efeito que o abre.
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
 
     expect(localStorage.getItem("orbit.token")).toBe("a.b.c");
     await serverAccepts();

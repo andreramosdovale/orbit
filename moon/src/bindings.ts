@@ -37,10 +37,22 @@ export type ApiErrorCode =
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
 
+/**  Mensagem de texto de um canal. */
+export type ChatMessage = {
+	id: number,
+	channel_id: number,
+	author: User,
+	content: string,
+	/**  Horário do servidor, em UTC (ISO 8601). */
+	created_at: string,
+};
+
 /**  Mensagens enviadas pelo cliente via WebSocket (`/ws`). */
 export type ClientMessage = 
 /**  Primeira mensagem da conexão: o JWT recebido no login. */
-{ type: "auth"; token: string } | { type: "ping" };
+{ type: "auth"; token: string } | { type: "ping" } | 
+/**  Envia uma mensagem a um canal. O autor sai da conexão autenticada. */
+{ type: "send_message"; channel_id: number; content: string };
 
 /**  Corpo de `POST /channels`. */
 export type CreateChannelRequest = {
@@ -62,6 +74,15 @@ export type LoginResponse = {
 	user: User,
 };
 
+/**  Por que o servidor recusou uma mensagem. */
+export type MessageRejectReason = 
+/**  Conteúdo vazio ou acima de 2000 caracteres. */
+"invalid_content" | 
+/**  O canal não existe. */
+"unknown_channel" | 
+/**  Erro interno do servidor. Detalhes só no log do `sun`. */
+"internal";
+
 /**  Corpo de `POST /auth/register`: auto-cadastro de um usuário novo. */
 export type RegisterRequest = {
 	/**  3 a 32 caracteres (`a-z`, `0-9`, `_`). O servidor converte para minúsculas. */
@@ -75,7 +96,13 @@ export type ServerMessage =
 /**  Token aceito: a conexão está autenticada como `user`. */
 { type: "auth_ok"; user: User } | 
 /**  Autenticação recusada. O servidor fecha a conexão com o código 1008 logo depois. */
-{ type: "auth_error" } | { type: "pong" };
+{ type: "auth_error" } | { type: "pong" } | 
+/**  Mensagem nova, enviada a todas as conexões, inclusive a de quem enviou. */
+{ type: "new_message"; message: ChatMessage } | 
+/**  Mensagem recusada, enviada só a quem tentou enviar. */
+{ type: "message_rejected"; reason: MessageRejectReason } | 
+/**  Canal novo, enviado a todas as conexões. */
+{ type: "channel_created"; channel: TextChannel };
 
 /**  Canal de texto. */
 export type TextChannel = {

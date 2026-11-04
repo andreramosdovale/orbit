@@ -12,7 +12,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
-use orbit_shared::{ClientMessage, ServerMessage, User};
+use orbit_shared::{ClientMessage, RegisterRequest, ServerMessage, User};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sqlx::SqlitePool;
@@ -41,11 +41,7 @@ pub async fn state_with_db(db: SqlitePool) -> anyhow::Result<AppState> {
     let jwt = JwtKeys::load_or_create(&db)
         .await
         .context("carregando o segredo do JWT")?;
-    Ok(AppState {
-        db,
-        jwt,
-        ws_auth_timeout: sun::WS_AUTH_TIMEOUT,
-    })
+    Ok(AppState::new(db, jwt))
 }
 
 /// Caminho de um banco temporário, removido mesmo se o teste falhar no meio.
@@ -153,16 +149,31 @@ impl TestServer {
         Ok(ws)
     }
 
-    /// Conexão já autenticada como um usuário de teste.
+    /// Conexão já autenticada como um usuário de teste, sem conta no banco.
+    /// Quem for gravar mensagens precisa de uma conta: use [`Self::register`].
     pub async fn connect_ws_authed(&self) -> anyhow::Result<Ws> {
         let user = User {
             id: 1,
             username: "fulano".into(),
         };
+        self.connect_ws_as(&user).await
+    }
+
+    /// Cria uma conta de verdade, pelo `POST /auth/register`.
+    pub async fn register(&self, username: &str) -> anyhow::Result<User> {
+        let req = RegisterRequest {
+            username: username.into(),
+            password: "senha-boa-123".into(),
+        };
+        post_json(&self.state, "/auth/register", &req).await?.json()
+    }
+
+    /// Conexão já autenticada como `user`.
+    pub async fn connect_ws_as(&self, user: &User) -> anyhow::Result<Ws> {
         let token = self
             .state
             .jwt
-            .issue(&user, sun::now())
+            .issue(user, sun::now())
             .context("emitindo token de teste")?;
         let mut ws = self.connect_ws().await?;
         send(&mut ws, &ClientMessage::Auth { token }).await?;

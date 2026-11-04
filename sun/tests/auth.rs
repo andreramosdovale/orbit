@@ -184,7 +184,14 @@ async fn register_cors_allows_app_origin() -> anyhow::Result<()> {
 
     for (origin, allowed) in [
         ("http://tauri.localhost", true),
+        ("tauri://localhost", true),
         ("http://localhost:1420", true),
+        // Uma segunda instância do `moon` em dev (`npm run dev:app`).
+        ("http://localhost:1439", true),
+        ("http://localhost:1419", false),
+        ("http://localhost:1440", false),
+        ("http://localhost:1420.evil.example", false),
+        ("http://localhost", false),
         ("http://evil.example", false),
     ] {
         let req = Request::builder()
