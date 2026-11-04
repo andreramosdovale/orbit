@@ -25,13 +25,17 @@
 [CmdletBinding()]
 param(
   [switch]$Dev,
-  [string]$InstallDir = (Join-Path (Split-Path -Parent $PSScriptRoot) "livekit"),
+  [string]$InstallDir,
   [switch]$SkipFirewall,
   [string]$SourceZip,
   [string]$ExpectedSha256 = "5d071ea43339f0140d24a66f0b2ff8a7bf6c4d0dceb19b30abca835670213667"
 )
 
 $ErrorActionPreference = "Stop"
+
+# Aqui, e não no param(): no PowerShell 5.1, $PSScriptRoot chega vazio nos valores padrão.
+$repoRoot = Split-Path -Parent $PSScriptRoot
+if (-not $InstallDir) { $InstallDir = Join-Path $repoRoot "livekit" }
 
 $Version = "1.13.11"
 $ZipName = "livekit_${Version}_windows_amd64.zip"

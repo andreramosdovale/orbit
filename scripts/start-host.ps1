@@ -13,11 +13,16 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$SunExe = (Join-Path (Split-Path -Parent $PSScriptRoot) "target\release\sun.exe"),
-  [string]$InstallDir = (Join-Path (Split-Path -Parent $PSScriptRoot) "livekit")
+  [string]$SunExe,
+  [string]$InstallDir
 )
 
 $ErrorActionPreference = "Stop"
+
+# Aqui, e não no param(): no PowerShell 5.1, $PSScriptRoot chega vazio nos valores padrão.
+$repoRoot = Split-Path -Parent $PSScriptRoot
+if (-not $SunExe) { $SunExe = Join-Path $repoRoot "target\release\sun.exe" }
+if (-not $InstallDir) { $InstallDir = Join-Path $repoRoot "livekit" }
 
 $livekit = Join-Path $InstallDir "livekit-server.exe"
 $config = Join-Path $InstallDir "livekit.yaml"
