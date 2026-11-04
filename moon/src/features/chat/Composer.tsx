@@ -7,17 +7,20 @@ interface ComposerProps {
   channelName: string;
   /** Erro da última mensagem enviada. */
   error: string | null;
+  /** Conexão caída: o campo continua editável, mas Enter não envia nem apaga o texto. */
+  offline?: boolean;
   onSend: (content: string) => void;
 }
 
 /** Campo de mensagem: Enter envia, Shift+Enter quebra a linha. */
-export function Composer({ channelName, error, onSend }: ComposerProps) {
+export function Composer({ channelName, error, offline = false, onSend }: ComposerProps) {
   const [text, setText] = useState("");
   const [tooLong, setTooLong] = useState(false);
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
+    if (offline) return;
 
     const content = text.trim();
     if (content === "") return;

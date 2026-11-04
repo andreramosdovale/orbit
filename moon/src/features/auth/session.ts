@@ -7,6 +7,22 @@ import type { ClientMessage, ServerMessage, User } from "../../bindings";
  */
 export const CONNECT_TIMEOUT_MS = 15_000;
 
+/** De quanto em quanto tempo a sessão envia `ping` ao servidor. */
+export const HEARTBEAT_INTERVAL_MS = 15_000;
+
+/**
+ * Sem receber nada do servidor por esse tempo, a conexão é dada como perdida. Uma queda
+ * de rede silenciosa não fecha o WebSocket do lado do webview (ADR 0013).
+ */
+export const HEARTBEAT_TIMEOUT_MS = 45_000;
+
+const MAX_RETRY_DELAY_MS = 30_000;
+
+/** Espera antes da próxima tentativa, depois de `failures` falhas seguidas. */
+export function retryDelayMs(failures: number): number {
+  return Math.min(1000 * 2 ** Math.max(failures - 1, 0), MAX_RETRY_DELAY_MS);
+}
+
 /** `rejected` = o servidor recusou o token. `unavailable` = não deu para falar com ele. */
 export type SessionErrorKind = "rejected" | "unavailable";
 
@@ -41,7 +57,7 @@ export function wsUrl(server: string): string {
 /**
  * Abre o `/ws` e autentica com `token` (ADR 0009).
  *
- * @param onClose chamado se a conexão cair depois de autenticada.
+ * @param onClose chamado se a conexão cair depois de autenticada, inclusive sem aviso.
  * @param signal cancela a tentativa enquanto ela está em andamento.
  */
 export function connectSession(
@@ -65,6 +81,16 @@ export function connectSession(
     let authenticated = false;
     const handlers = new Set<(message: ServerMessage) => void>();
     let backlog: ServerMessage[] = [];
+    let lastHeard = 0;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+    /** Conexão perdida sem o socket avisar: não espera o navegador concluir o fechamento. */
+    const giveUp = () => {
+      closedByApp = true;
+      clearInterval(heartbeat);
+      onClose();
+      socket.close();
+    };
 
     const fail = (kind: SessionErrorKind) => {
       if (settled) return;
@@ -84,6 +110,7 @@ export function connectSession(
     };
 
     socket.onmessage = (event) => {
+      lastHeard = Date.now();
       const msg = parseServerMessage(event.data);
       if (authenticated) {
         if (!msg) return;
@@ -96,6 +123,14 @@ export function connectSession(
         settled = true;
         authenticated = true;
         clearTimeout(timer);
+        heartbeat = setInterval(() => {
+          if (Date.now() - lastHeard >= HEARTBEAT_TIMEOUT_MS) {
+            giveUp();
+            return;
+          }
+          const ping: ClientMessage = { type: "ping" };
+          socket.send(JSON.stringify(ping));
+        }, HEARTBEAT_INTERVAL_MS);
         resolve({
           user: msg.user,
           send(message) {
@@ -112,6 +147,7 @@ export function connectSession(
           },
           close() {
             closedByApp = true;
+            clearInterval(heartbeat);
             socket.close();
           },
         });
@@ -123,6 +159,7 @@ export function connectSession(
     socket.onerror = () => fail("unavailable");
 
     socket.onclose = () => {
+      clearInterval(heartbeat);
       if (!settled) {
         fail("unavailable");
       } else if (!closedByApp) {

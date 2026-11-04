@@ -27,6 +27,7 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 - [x] Mensagens em tempo real via WebSocket, persistidas ([spec 006](specs/006-mensagens-em-tempo-real.md), [ADR 0011](decisions/0011-retencao-de-mensagens.md))
 - [x] Histórico paginado ([spec 007](specs/007-historico-paginado.md), [ADR 0012](decisions/0012-tanstack-query-no-front.md))
 - [x] Presença (online/offline) ([spec 008](specs/008-presenca.md))
+- [x] Reconexão automática ([spec 009](specs/009-reconexao-automatica.md), [ADR 0013](decisions/0013-reconexao-automatica.md))
 
 ## Fase 3: Voz
 

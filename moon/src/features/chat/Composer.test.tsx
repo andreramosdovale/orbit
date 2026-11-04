@@ -26,6 +26,18 @@ describe("Composer", () => {
     expect(field.value).toBe("");
   });
 
+  it("com a conexão caída, Enter não envia nem apaga o texto", () => {
+    const onSend = vi.fn();
+    render(<Composer channelName="geral" error={null} offline onSend={onSend} />);
+    const field = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    type(field, "guardado");
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(field.value).toBe("guardado");
+  });
+
   it("Shift+Enter não envia", () => {
     const { onSend, field } = renderComposer();
 

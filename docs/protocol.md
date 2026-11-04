@@ -185,6 +185,10 @@ Depois de autenticar, mensagens inválidas são ignoradas (com log `warn` no ser
 - O servidor envia um ping de WebSocket a cada **20 segundos** (`sun::WS_PING_INTERVAL`). Sem receber nada do cliente por **60 segundos** (`sun::WS_IDLE_TIMEOUT`), ele encerra a conexão com o código **1001**.
 - Uma falha ao ler a presença encerra a conexão com o código **1011**.
 
+### Queda de conexão
+
+O `moon` envia `ping` a cada **15 segundos**. Sem receber nada do servidor por **45 segundos**, ele considera a conexão perdida. Ao perdê-la, por esse prazo ou por um fechamento, ele reconecta sozinho, esperando de 1 a 30 segundos entre as tentativas, e só para com `auth_error` ou quando a pessoa sai ([ADR 0013](decisions/0013-reconexao-automatica.md)). Cada reconexão é uma conexão nova: autentica de novo e recebe outro `presence_snapshot`. O que chegou durante a queda é buscado pelo REST.
+
 Mensagens (e frames) acima de **64 KiB** (`sun::MAX_MESSAGE_SIZE`) fazem o servidor encerrar a conexão, antes ou depois de autenticar.
 
 ## Comandos Tauri (front → core Rust do `moon`)

@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeWebSocket, stubWebSocket } from "../../test/fakeWebSocket";
-import { CONNECT_TIMEOUT_MS, connectSession, SessionError, wsUrl } from "./session";
+import {
+  CONNECT_TIMEOUT_MS,
+  connectSession,
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+  retryDelayMs,
+  SessionError,
+  wsUrl,
+} from "./session";
 
 const SERVER = "http://host:7700";
 const USER = { id: 1, username: "fulano" };
@@ -13,6 +21,88 @@ beforeEach(stubWebSocket);
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("retryDelayMs", () => {
+  it("dobra a espera até 30 segundos", () => {
+    const delays = [1, 2, 3, 4, 5, 6, 7, 50].map(retryDelayMs);
+    expect(delays).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]);
+  });
+});
+
+describe("heartbeat", () => {
+  async function connected() {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    const pending = connectSession(SERVER, "a.b.c", onClose);
+    FakeWebSocket.last.open();
+    FakeWebSocket.last.receive({ type: "auth_ok", user: USER });
+    const session = await pending;
+    const socket = FakeWebSocket.last;
+    const pings = () => socket.sent.filter((m) => JSON.parse(m).type === "ping").length;
+    return { session, socket, onClose, pings };
+  }
+
+  it("envia ping a cada 15 segundos", async () => {
+    const { pings } = await connected();
+
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS - 1);
+    expect(pings()).toBe(0);
+
+    vi.advanceTimersByTime(1);
+    expect(pings()).toBe(1);
+
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+    expect(pings()).toBe(2);
+  });
+
+  it("qualquer mensagem do servidor adia o prazo", async () => {
+    const { socket, onClose } = await connected();
+
+    for (let i = 0; i < 10; i += 1) {
+      vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+      socket.receive({ type: "pong" });
+    }
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(socket.closed).toBe(false);
+  });
+
+  it("sem receber nada no prazo, avisa uma vez e fecha o socket", async () => {
+    const { socket, onClose, pings } = await connected();
+
+    vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS - 1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(socket.closed).toBe(true);
+
+    const sent = pings();
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS * 4);
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(pings()).toBe(sent);
+  });
+
+  it("close() para os pings", async () => {
+    const { session, onClose, pings } = await connected();
+
+    session.close();
+    vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS * 2);
+
+    expect(pings()).toBe(0);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("a conexão caindo para os pings", async () => {
+    const { socket, onClose, pings } = await connected();
+
+    socket.dropConnection();
+    vi.advanceTimersByTime(HEARTBEAT_TIMEOUT_MS * 2);
+
+    expect(pings()).toBe(0);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
 
 describe("wsUrl", () => {

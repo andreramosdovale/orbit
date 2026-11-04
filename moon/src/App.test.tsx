@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { FakeWebSocket, stubWebSocket } from "./test/fakeWebSocket";
 
@@ -56,6 +56,10 @@ function click(name: string) {
 beforeEach(() => {
   stubWebSocket();
   stubServer();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("App", () => {
@@ -149,14 +153,116 @@ describe("App", () => {
     expect(screen.getByRole("status").textContent).toBe("Conectado como fulano");
   });
 
-  it("a conexão caindo depois de conectar mostra Tentar de novo", async () => {
+  it("com servidor inacessível, tenta sozinho seguindo as esperas", async () => {
+    vi.useFakeTimers();
+    renderWithSavedToken();
+    const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+
+    await act(async () => FakeWebSocket.last.fail());
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    await advance(999);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await advance(1);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    await act(async () => FakeWebSocket.last.fail());
+    await advance(1999);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    await advance(1);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+
+    await act(async () => {
+      FakeWebSocket.last.open();
+      FakeWebSocket.last.receive({ type: "auth_ok", user: USER });
+    });
+    expect(screen.getByRole("status").textContent).toBe("Conectado como fulano");
+  });
+
+  it("Tentar de novo não espera o prazo", async () => {
+    vi.useFakeTimers();
+    renderWithSavedToken();
+    await act(async () => FakeWebSocket.last.fail());
+
+    click("Tentar de novo");
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const button = screen.getByRole("button", { name: "Tentar de novo" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it("Sair durante a espera cancela a próxima tentativa", async () => {
+    vi.useFakeTimers();
+    renderWithSavedToken();
+    await act(async () => FakeWebSocket.last.fail());
+
+    click("Sair");
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Entrar" })).toBeTruthy();
+  });
+
+  it("a conexão caindo tenta de novo na hora, sem clique, e mantém o token", async () => {
     renderWithSavedToken();
     await serverAccepts();
+    const before = FakeWebSocket.instances.length;
 
     await act(async () => FakeWebSocket.last.dropConnection());
 
     expect(localStorage.getItem("orbit.token")).toBe("a.b.c");
-    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(FakeWebSocket.instances.length).toBe(before + 1);
+    expect(screen.getByRole("alert").textContent).toContain("Conexão perdida");
+  });
+
+  it("conectar de novo mantém o chat e o texto do campo", async () => {
+    renderWithSavedToken();
+    await serverAccepts();
+    const field = (await screen.findByRole("textbox", {
+      name: "Mensagem para #geral",
+    })) as HTMLTextAreaElement;
+    fireEvent.change(field, { target: { value: "ainda escrevendo" } });
+
+    await act(async () => FakeWebSocket.last.dropConnection());
+    expect(screen.getByRole("heading", { name: "# geral" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Sem conexão, entrou como fulano");
+    await serverAccepts();
+
+    expect(screen.queryByText(/Conexão perdida/)).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Conectado como fulano");
+    expect(
+      (screen.getByRole("textbox", { name: "Mensagem para #geral" }) as HTMLTextAreaElement).value,
+    ).toBe("ainda escrevendo");
+  });
+
+  it("auth_error ao reconectar volta ao login e para as tentativas", async () => {
+    renderWithSavedToken();
+    await serverAccepts();
+    await act(async () => FakeWebSocket.last.dropConnection());
+    const before = FakeWebSocket.instances.length;
+
+    await act(async () => {
+      FakeWebSocket.last.open();
+      FakeWebSocket.last.receive({ type: "auth_error" });
+    });
+
+    expect(localStorage.getItem("orbit.token")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Entrar" })).toBeTruthy();
+    expect(FakeWebSocket.instances.length).toBe(before);
+  });
+
+  it("Sair durante a reconexão fecha a tentativa e não tenta mais", async () => {
+    renderWithSavedToken();
+    await serverAccepts();
+    await act(async () => FakeWebSocket.last.dropConnection());
+    const attempt = FakeWebSocket.last;
+    const before = FakeWebSocket.instances.length;
+
+    click("Sair");
+
+    expect(attempt.closed).toBe(true);
+    expect(FakeWebSocket.instances.length).toBe(before);
+    expect(screen.getByRole("heading", { name: "Entrar" })).toBeTruthy();
   });
 
   it("Sair apaga o token, mantém o servidor e fecha o socket", async () => {

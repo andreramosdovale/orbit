@@ -67,7 +67,7 @@ export function ChannelMessages({
       hasMore={query.hasNextPage}
       loadingOlder={query.isFetchingNextPage}
       onLoadOlder={() => query.fetchNextPage()}
-      onRetry={() => (pages ? query.fetchNextPage() : query.refetch())}
+      onRetry={() => (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())}
     />
   );
 }
