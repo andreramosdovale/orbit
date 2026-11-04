@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { commands, type User } from "./bindings";
-import { Connected } from "./features/auth/Connected";
 import { Login } from "./features/auth/Login";
 import { Register } from "./features/auth/Register";
 import { connectSession, type Session, SessionError } from "./features/auth/session";
 import { clearToken, loadServer, loadToken, saveToken } from "./features/auth/storage";
+import { ChatLayout } from "./features/chat/ChatLayout";
 import "./App.css";
+
+const SESSION_EXPIRED = "Sua sessão expirou. Entre novamente.";
 
 type View =
   | { kind: "login"; notice?: string; username?: string }
   | { kind: "register" }
   | { kind: "connecting" }
-  | { kind: "connected"; user: User }
+  | { kind: "connected"; user: User; server: string; token: string }
   | { kind: "unavailable" };
 
 function initialView(): View {
@@ -28,6 +30,16 @@ function App() {
     commands.appVersion().then(setVersion);
   }, []);
 
+  /** Fecha a conexão, apaga o token e volta ao login. */
+  const endSession = useCallback((notice?: string) => {
+    session.current?.close();
+    session.current = null;
+    clearToken();
+    setView({ kind: "login", notice });
+  }, []);
+  const logout = useCallback(() => endSession(), [endSession]);
+  const expireSession = useCallback(() => endSession(SESSION_EXPIRED), [endSession]);
+
   // Toda tentativa de conexão passa por aqui: abrir o app, login e "Tentar de novo".
   useEffect(() => {
     if (!connecting) return;
@@ -37,37 +49,30 @@ function App() {
       return;
     }
 
+    const server = loadServer();
     const controller = new AbortController();
     const onDropped = () => {
       session.current = null;
       setView({ kind: "unavailable" });
     };
-    connectSession(loadServer(), token, onDropped, controller.signal)
+    connectSession(server, token, onDropped, controller.signal)
       .then((opened) => {
         session.current = opened;
-        setView({ kind: "connected", user: opened.user });
+        setView({ kind: "connected", user: opened.user, server, token });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         if (err instanceof SessionError && err.kind === "rejected") {
-          clearToken();
-          setView({ kind: "login", notice: "Sua sessão expirou. Entre novamente." });
+          endSession(SESSION_EXPIRED);
         } else {
           setView({ kind: "unavailable" });
         }
       });
     return () => controller.abort();
-  }, [connecting]);
+  }, [connecting, endSession]);
 
   // Fechar o app derruba a conexão aberta.
   useEffect(() => () => session.current?.close(), []);
-
-  function logout() {
-    session.current?.close();
-    session.current = null;
-    clearToken();
-    setView({ kind: "login" });
-  }
 
   return (
     <main className="container">
@@ -95,7 +100,15 @@ function App() {
         />
       )}
       {view.kind === "connecting" && <p role="status">Conectando...</p>}
-      {view.kind === "connected" && <Connected user={view.user} onLogout={logout} />}
+      {view.kind === "connected" && (
+        <ChatLayout
+          server={view.server}
+          token={view.token}
+          user={view.user}
+          onLogout={logout}
+          onSessionExpired={expireSession}
+        />
+      )}
       {view.kind === "unavailable" && (
         <div className="auth-form">
           <p className="error" role="alert">

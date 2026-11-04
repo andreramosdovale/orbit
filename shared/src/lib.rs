@@ -67,6 +67,22 @@ pub struct LoginResponse {
     pub user: User,
 }
 
+/// Canal de texto.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct TextChannel {
+    pub id: u32,
+    pub name: String,
+}
+
+/// Corpo de `POST /channels`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CreateChannelRequest {
+    /// 1 a 32 letras (com acento), números, `-` ou `_`. O servidor remove espaços nas pontas e converte para minúsculas.
+    pub name: String,
+}
+
 /// Corpo de toda resposta de erro da API REST.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -91,6 +107,12 @@ pub enum ApiErrorCode {
     UsernameTaken,
     /// Usuário ou senha incorretos no login (não diz qual dos dois).
     InvalidCredentials,
+    /// Token ausente, inválido ou expirado em uma rota protegida.
+    Unauthorized,
+    /// Nome de canal fora das regras.
+    InvalidChannelName,
+    /// Já existe um canal com esse nome.
+    ChannelNameTaken,
     /// Erro interno do servidor. Detalhes só no log do `sun`.
     Internal,
 }
@@ -206,6 +228,45 @@ mod tests {
         assert_eq!(
             serde_json::to_value(ApiErrorCode::InvalidCredentials).unwrap(),
             json!("invalid_credentials")
+        );
+    }
+
+    #[test]
+    fn channel_wire_format() {
+        let channel = TextChannel {
+            id: 1,
+            name: "geral".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(channel).unwrap(),
+            json!({ "id": 1, "name": "geral" })
+        );
+    }
+
+    #[test]
+    fn create_channel_request_wire_format() {
+        let req = CreateChannelRequest {
+            name: "música".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(req).unwrap(),
+            json!({ "name": "música" })
+        );
+    }
+
+    #[test]
+    fn channel_error_codes_wire_format() {
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::Unauthorized).unwrap(),
+            json!("unauthorized")
+        );
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::InvalidChannelName).unwrap(),
+            json!("invalid_channel_name")
+        );
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::ChannelNameTaken).unwrap(),
+            json!("channel_name_taken")
         );
     }
 

@@ -12,14 +12,19 @@ src/
 ├── error.rs         # ApiError → ApiErrorBody (IntoResponse)
 ├── auth/
 │   ├── mod.rs       # routes(): POST /auth/register e /auth/login (handlers finos)
+│   ├── extractor.rs # AuthUser: protege uma rota REST ao ser recebido como parâmetro
 │   ├── register.rs  # validação, hash argon2id, INSERT. Erro de domínio: RegisterError
 │   ├── login.rs     # confere senha (argon2) e emite o token. Erro de domínio: LoginError
 │   └── jwt.rs       # JwtKeys: segredo no SQLite (tabela secrets), issue/verify (ADR 0008)
+├── chat/
+│   ├── mod.rs       # routes(): GET e POST /channels (handlers finos)
+│   └── channels.rs  # validação do nome, listagem e criação. Erro de domínio: ChannelError
 └── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), depois recebe ClientMessage e responde ServerMessage
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
 ├── api.rs           # /health e WebSocket já autenticado
 ├── auth.rs          # cadastro, login e persistência do segredo do JWT
+├── channels.rs      # canais de texto e autenticação REST
 ├── ws_auth.rs       # autenticação do WebSocket
 └── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send/recv
 ```
@@ -30,6 +35,7 @@ Conforme o servidor crescer, organize **por domínio** (`auth/`, `chat/`, `voice
 
 - **Testável sem rede:** toda rota HTTP deve ser testável via `sun::app(state).oneshot(request)` (`tower::ServiceExt`), com `common::state()` (SQLite em memória). Só o WebSocket precisa de porta real (`127.0.0.1:0`). Siga os exemplos em `tests/auth.rs` e `tests/api.rs`.
 - **Estado compartilhado** (pool do banco, config, conexões WS): campos da struct `AppState` (`Clone`), passada via `Router::with_state`.
+- **Rotas protegidas:** recebem `AuthUser` como parâmetro, antes de extratores de corpo, para o `401` vir antes de qualquer validação.
 - **Banco:** mudança de schema = arquivo novo em `migrations/` (`NNNN_descricao.sql`). Nunca edite uma migration já commitada.
 - **Mensagens do WebSocket:** sempre os tipos de `orbit_shared`. Nunca monte JSON à mão. Depois de autenticar, mensagem inválida gera `tracing::warn!` e é ignorada, sem derrubar a conexão. Antes de autenticar, ela recebe `auth_error` e a conexão fecha (ADR 0009).
 - **Config via variáveis de ambiente**, com padrão sensato em `main.rs` (`SUN_ADDR`, padrão `0.0.0.0:7700`). Documente cada variável nova aqui.

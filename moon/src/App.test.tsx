@@ -16,6 +16,20 @@ function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
+/** `sun` simulado: responde às rotas conhecidas; `channels` pode ser trocado por teste. */
+function stubServer(
+  routes: Record<string, () => Response> = {},
+  channels: () => Response = () => jsonResponse(200, [{ id: 1, name: "geral" }]),
+) {
+  vi.stubGlobal("fetch", async (url: string) => {
+    const path = new URL(url).pathname;
+    if (path === "/channels") return channels();
+    const route = routes[path];
+    if (!route) throw new Error(`rota inesperada no teste: ${path}`);
+    return route();
+  });
+}
+
 /** Simula o app aberto com uma sessão salva neste PC. */
 function renderWithSavedToken() {
   localStorage.setItem("orbit.server", SERVER);
@@ -38,7 +52,10 @@ function click(name: string) {
   fireEvent.click(screen.getByRole("button", { name }));
 }
 
-beforeEach(stubWebSocket);
+beforeEach(() => {
+  stubWebSocket();
+  stubServer();
+});
 
 describe("App", () => {
   it("sem token, mostra o login e não abre conexão", async () => {
@@ -49,7 +66,7 @@ describe("App", () => {
   });
 
   it("login com sucesso grava o token e mostra a tela conectada", async () => {
-    vi.stubGlobal("fetch", async () => jsonResponse(200, { token: "a.b.c", user: USER }));
+    stubServer({ "/auth/login": () => jsonResponse(200, { token: "a.b.c", user: USER }) });
     render(<App />);
 
     fill("Servidor", SERVER);
@@ -152,8 +169,22 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Entrar" })).toBeTruthy();
   });
 
+  it("um 401 ao carregar os canais apaga o token e volta ao login com o aviso", async () => {
+    stubServer({}, () =>
+      jsonResponse(401, { code: "unauthorized", message: "Sua sessão expirou." }),
+    );
+    renderWithSavedToken();
+
+    await serverAccepts();
+
+    expect(await screen.findByRole("heading", { name: "Entrar" })).toBeTruthy();
+    expect(localStorage.getItem("orbit.token")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Sua sessão expirou. Entre novamente.");
+    expect(FakeWebSocket.last.closed).toBe(true);
+  });
+
   it("criar a conta volta ao login com o usuário preenchido", async () => {
-    vi.stubGlobal("fetch", async () => jsonResponse(201, USER));
+    stubServer({ "/auth/register": () => jsonResponse(201, USER) });
     render(<App />);
 
     click("Criar conta");

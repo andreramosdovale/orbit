@@ -20,6 +20,12 @@ pub enum ApiError {
     UsernameTaken,
     #[error("usuário ou senha incorretos")]
     InvalidCredentials,
+    #[error("não autenticado")]
+    Unauthorized,
+    #[error("nome de canal inválido")]
+    InvalidChannelName,
+    #[error("nome de canal já existe")]
+    ChannelNameTaken,
     /// A causa só vai para o log; o cliente recebe uma mensagem genérica.
     #[error("erro interno")]
     Internal(#[source] BoxError),
@@ -58,6 +64,22 @@ impl IntoResponse for ApiError {
                 StatusCode::UNAUTHORIZED,
                 ApiErrorCode::InvalidCredentials,
                 "Usuário ou senha incorretos.".to_owned(),
+            ),
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                ApiErrorCode::Unauthorized,
+                "Sua sessão expirou. Entre novamente.".to_owned(),
+            ),
+            Self::InvalidChannelName => (
+                StatusCode::BAD_REQUEST,
+                ApiErrorCode::InvalidChannelName,
+                "O nome do canal deve ter de 1 a 32 caracteres: letras, números, - ou _."
+                    .to_owned(),
+            ),
+            Self::ChannelNameTaken => (
+                StatusCode::CONFLICT,
+                ApiErrorCode::ChannelNameTaken,
+                "Já existe um canal com esse nome.".to_owned(),
             ),
             Self::Internal(source) => {
                 tracing::error!(error = ?source, "erro interno ao processar requisição");

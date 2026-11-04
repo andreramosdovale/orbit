@@ -28,6 +28,12 @@ export type ApiErrorCode =
 "username_taken" | 
 /**  Usuário ou senha incorretos no login (não diz qual dos dois). */
 "invalid_credentials" | 
+/**  Token ausente, inválido ou expirado em uma rota protegida. */
+"unauthorized" | 
+/**  Nome de canal fora das regras. */
+"invalid_channel_name" | 
+/**  Já existe um canal com esse nome. */
+"channel_name_taken" | 
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
 
@@ -35,6 +41,12 @@ export type ApiErrorCode =
 export type ClientMessage = 
 /**  Primeira mensagem da conexão: o JWT recebido no login. */
 { type: "auth"; token: string } | { type: "ping" };
+
+/**  Corpo de `POST /channels`. */
+export type CreateChannelRequest = {
+	/**  1 a 32 letras (com acento), números, `-` ou `_`. O servidor remove espaços nas pontas e converte para minúsculas. */
+	name: string,
+};
 
 /**  Corpo de `POST /auth/login`. */
 export type LoginRequest = {
@@ -64,6 +76,12 @@ export type ServerMessage =
 { type: "auth_ok"; user: User } | 
 /**  Autenticação recusada. O servidor fecha a conexão com o código 1008 logo depois. */
 { type: "auth_error" } | { type: "pong" };
+
+/**  Canal de texto. */
+export type TextChannel = {
+	id: number,
+	name: string,
+};
 
 /**  Usuário público. Nunca contém senha nem hash. */
 export type User = {

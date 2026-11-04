@@ -59,3 +59,86 @@ body {
 .auth-form .error {
   color: #f07178;
 }
+
+.chat-layout {
+  align-self: stretch;
+  flex: 1;
+  display: flex;
+}
+
+.chat-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: #161827;
+}
+
+.chat-sidebar .channels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-sidebar .channel {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chat-sidebar .channel[aria-current="true"] {
+  background-color: #2a2d45;
+}
+
+.chat-sidebar .new-channel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-sidebar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.chat-sidebar input,
+.chat-sidebar button[type="submit"],
+.chat-sidebar .logout {
+  padding: 8px;
+  font: inherit;
+}
+
+.chat-sidebar .error {
+  margin: 0;
+  color: #f07178;
+}
+
+.chat-main {
+  flex: 1;
+  padding: 16px 24px;
+}
+
+.chat-main h2 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.chat-main p {
+  color: #8a8aa3;
+}
