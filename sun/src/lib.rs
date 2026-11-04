@@ -5,6 +5,7 @@ mod auth;
 mod chat;
 pub mod db;
 mod error;
+mod presence;
 mod ws;
 
 use std::future::Future;
@@ -21,8 +22,10 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
+use presence::Presence;
+
 pub use auth::{Claims, JwtError, JwtKeys, SecretError, now};
-pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT};
+pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT, WS_IDLE_TIMEOUT, WS_PING_INTERVAL};
 
 /// Quantas mensagens o `hub` guarda para quem está atrasado. Quem passa disso é desconectado.
 pub const HUB_CAPACITY: usize = 256;
@@ -50,6 +53,12 @@ pub struct AppState {
     pub ws_auth_timeout: Duration,
     /// Publica para todas as conexões WebSocket autenticadas.
     pub hub: broadcast::Sender<ServerMessage>,
+    /// De quanto em quanto tempo o `/ws` envia um ping. Em produção, [`WS_PING_INTERVAL`].
+    pub ws_ping_interval: Duration,
+    /// Sem receber nada por esse tempo, o `/ws` encerra a conexão. Em produção, [`WS_IDLE_TIMEOUT`].
+    pub ws_idle_timeout: Duration,
+    /// Quem está conectado agora.
+    presence: Presence,
 }
 
 impl AppState {
@@ -59,6 +68,9 @@ impl AppState {
             db,
             jwt,
             ws_auth_timeout: WS_AUTH_TIMEOUT,
+            ws_ping_interval: WS_PING_INTERVAL,
+            ws_idle_timeout: WS_IDLE_TIMEOUT,
+            presence: Presence::new(hub.clone()),
             hub,
         }
     }

@@ -4,6 +4,7 @@
 use orbit_shared::{
     ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, LoginRequest, LoginResponse,
     MessagePage, MessageRejectReason, RegisterRequest, ServerMessage, TextChannel, User,
+    UserPresence,
 };
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
@@ -28,6 +29,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         // Tipos da API REST do `sun` usados pelo front via `fetch`.
         .typ::<RegisterRequest>()
         .typ::<User>()
+        .typ::<UserPresence>()
         .typ::<LoginRequest>()
         .typ::<LoginResponse>()
         .typ::<TextChannel>()

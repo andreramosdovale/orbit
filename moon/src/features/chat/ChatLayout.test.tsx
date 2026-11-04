@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ServerMessage } from "../../bindings";
 import type { Session } from "../auth/session";
@@ -286,6 +286,69 @@ describe("ChatLayout", () => {
     fireEvent.change(field, { target: { value: "oi" } });
     fireEvent.keyDown(field, { key: "Enter" });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  describe("presença", () => {
+    const ANA = { id: 7, username: "ana" };
+    const BETO = { id: 8, username: "beto" };
+
+    function people() {
+      return within(screen.getByRole("complementary", { name: "Pessoas" }));
+    }
+
+    async function withSnapshot() {
+      stubResponses(() => jsonResponse(200, [GERAL]));
+      const { emit } = renderLayout();
+      await screen.findByRole("heading", { name: "# geral" });
+      emit({
+        type: "presence_snapshot",
+        users: [
+          { user: ANA, online: true },
+          { user: BETO, online: false },
+        ],
+      });
+      return emit;
+    }
+
+    it("presence_snapshot preenche a lista", async () => {
+      await withSnapshot();
+
+      expect(people().getByRole("heading", { name: "Online — 1" })).toBeTruthy();
+      expect(people().getByRole("heading", { name: "Offline — 1" })).toBeTruthy();
+      expect(people().getByText("ana")).toBeTruthy();
+      expect(people().getByText("beto")).toBeTruthy();
+    });
+
+    it("user_online e user_offline movem a pessoa de seção", async () => {
+      const emit = await withSnapshot();
+
+      emit({ type: "user_online", user: BETO });
+      expect(people().getByRole("heading", { name: "Online — 2" })).toBeTruthy();
+      expect(people().queryByRole("heading", { name: /^Offline/ })).toBeNull();
+
+      emit({ type: "user_offline", user: ANA });
+      emit({ type: "user_offline", user: BETO });
+      expect(people().getByRole("heading", { name: "Offline — 2" })).toBeTruthy();
+      expect(people().queryByRole("heading", { name: /^Online/ })).toBeNull();
+    });
+
+    it("user_online de uma conta desconhecida a adiciona", async () => {
+      const emit = await withSnapshot();
+
+      emit({ type: "user_online", user: { id: 9, username: "caio" } });
+
+      expect(people().getByText("caio")).toBeTruthy();
+      expect(people().getByRole("heading", { name: "Online — 2" })).toBeTruthy();
+    });
+
+    it("um estado repetido não duplica a pessoa", async () => {
+      const emit = await withSnapshot();
+
+      emit({ type: "user_online", user: ANA });
+
+      expect(people().getAllByText("ana")).toHaveLength(1);
+      expect(people().getByRole("heading", { name: "Online — 1" })).toBeTruthy();
+    });
   });
 
   describe("histórico", () => {

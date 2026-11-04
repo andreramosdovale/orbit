@@ -10,7 +10,7 @@ src/                     # front (React)
 ├── App.tsx              # navegação entre telas e ciclo da conexão
 ├── api/http.ts          # request() e ApiError: toda chamada REST ao sun passa por aqui
 ├── features/auth/       # api.ts (fetch no sun), session.ts (/ws autenticado), storage.ts (servidor e token), Login, Register, Connected
-├── features/chat/       # api.ts (canais e histórico), ChatLayout (tela depois de entrar e cache), ChannelMessages (histórico + ao vivo), MessageList, Composer
+├── features/chat/       # api.ts (canais e histórico), ChatLayout (tela depois de entrar e cache), ChannelMessages (histórico + ao vivo), MessageList, Composer, MemberList (presença)
 ├── test/                # setup do Vitest e WebSocket simulado
 └── bindings.ts          # GERADO pelo Rust: nunca edite
 scripts/dev.mjs          # npm run dev:app: abre o app na primeira porta livre
@@ -43,7 +43,7 @@ Tipos do protocolo (`orbit_shared`) que o front usa direto, como as mensagens do
 - O front fala direto com o `sun` (HTTP/WebSocket) e com o LiveKit (SDK JS) a partir do webview. O core Rust fica para o que o webview não consegue fazer bem (captura nativa, APIs do Windows).
 - Lint e formatação: Biome (`npm run lint`, `npm run format`). O hook formata automaticamente após cada edição.
 - **Chamadas ao `sun`:** em `features/<domínio>/api.ts`, usando `request()` de `api/http.ts` e os tipos de `bindings.ts`. Erros viram `ApiError` (`code` do `ApiErrorBody` ou `network`); a UI mostra o `message`, e um `unauthorized` encerra a sessão (`onSessionExpired`).
-- **Cache:** as chamadas de chat usam TanStack Query, com o `QueryClient` criado pelo `ChatLayout`, que dura uma conexão (ADR 0012). O WebSocket não escreve no cache: o que chega por ele fica em estado do `ChatLayout` e é junto às páginas por `id`.
+- **Cache:** as chamadas de chat usam TanStack Query, com o `QueryClient` criado pelo `ChatLayout`, que dura uma conexão (ADR 0012). O WebSocket não escreve no cache: as mensagens que chegam por ele ficam em estado do `ChatLayout` e são juntas às páginas por `id`, e a presença também fica nesse estado.
 - **Sessão:** o token fica em `features/auth/storage.ts` (ADR 0010) e nunca vai para `console` nem para mensagens de erro. A conexão com o `/ws` passa por `connectSession` (ADR 0009), e quem precisa dela recebe a `Session`: `send` envia e `subscribe` recebe as mensagens do servidor.
 - **Testes:** Vitest + Testing Library em jsdom, ao lado do código (`*.test.ts(x)`). `fetch` com `vi.stubGlobal`, WebSocket com `src/test/fakeWebSocket.ts`. Rode as ferramentas com `npm run`/`npm test`, não com `npx`: fora de `moon/`, o `npx` baixa do registro um pacote qualquer de mesmo nome (`tsc`, `biome`).
 - Estrutura conforme crescer: `src/features/<domínio>/` (componentes + hooks + chamadas), `src/components/` para componentes genéricos.

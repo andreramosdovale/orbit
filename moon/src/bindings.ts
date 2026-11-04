@@ -112,7 +112,13 @@ export type ServerMessage =
 /**  Mensagem recusada, enviada só a quem tentou enviar. */
 { type: "message_rejected"; reason: MessageRejectReason } | 
 /**  Canal novo, enviado a todas as conexões. */
-{ type: "channel_created"; channel: TextChannel };
+{ type: "channel_created"; channel: TextChannel } | 
+/**  Todas as contas e o estado de cada uma. Só para a conexão que acabou de entrar. */
+{ type: "presence_snapshot"; users: UserPresence[] } | 
+/**  Alguém ficou online, para todas as conexões. */
+{ type: "user_online"; user: User } | 
+/**  Alguém ficou offline, para todas as conexões. */
+{ type: "user_offline"; user: User };
 
 /**  Canal de texto. */
 export type TextChannel = {
@@ -124,5 +130,11 @@ export type TextChannel = {
 export type User = {
 	id: number,
 	username: string,
+};
+
+/**  Uma conta e se ela está conectada agora. */
+export type UserPresence = {
+	user: User,
+	online: boolean,
 };
 

@@ -20,7 +20,8 @@ src/
 │   ├── mod.rs       # routes(): GET e POST /channels, GET /channels/{id}/messages (handlers finos)
 │   ├── channels.rs  # validação do nome, listagem e criação. Erro de domínio: ChannelError
 │   └── messages.rs  # validação, gravação e histórico de mensagens. Erro de domínio: MessageError
-└── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), depois recebe ClientMessage e responde ServerMessage
+├── presence.rs      # Presence: conexões por usuário, em memória; PresenceGuard desconta ao ser destruído
+└── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), envia a presença, depois recebe ClientMessage e responde ServerMessage; ping e prazo do cliente
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
 ├── api.rs           # /health e WebSocket já autenticado
@@ -28,8 +29,9 @@ tests/
 ├── channels.rs      # canais de texto e autenticação REST
 ├── messages.rs      # mensagens em tempo real, com conexões WebSocket reais
 ├── history.rs       # histórico paginado
+├── presence.rs      # presença e conexões mortas, com conexões WebSocket reais
 ├── ws_auth.rs       # autenticação do WebSocket
-└── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send/recv
+└── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send, recv (ignora a presença), recv_any
 ```
 
 Conforme o servidor crescer, organize **por domínio** (`auth/`, `chat/`, `voice/`), cada um com seu `mod.rs` expondo as rotas (`fn routes() -> Router<AppState>`) e montado em `lib.rs`.
