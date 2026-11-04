@@ -12,7 +12,7 @@ src/                     # front (React)
 ├── ds/                  # design system: tokens e componentes, importados por ds/index.ts (ADR 0016)
 ├── features/auth/       # api.ts (fetch no sun), session.ts (/ws autenticado), storage.ts (servidor e token), Login, Register, Connected
 ├── features/chat/       # api.ts (canais e histórico), ChatLayout (tela depois de entrar e cache), ChannelMessages (histórico + ao vivo), MessageList, Composer, MemberList (presença)
-├── features/voice/      # api.ts, room.ts (único lugar que usa o livekit-client), useVoiceRoom, VoiceSection, VoicePanel
+├── features/voice/      # api.ts, room.ts (único lugar que usa o livekit-client), useVoiceRoom, VoiceSection, VoicePanel, ScreenStage
 ├── test/                # setup do Vitest e WebSocket simulado
 └── bindings.ts          # GERADO pelo Rust: nunca edite
 scripts/dev.mjs          # npm run dev:app: abre o app na primeira porta livre
@@ -48,7 +48,7 @@ Tipos do protocolo (`orbit_shared`) que o front usa direto, como as mensagens do
 - Lint e formatação: Biome (`npm run lint`, `npm run format`). O hook formata automaticamente após cada edição.
 - **Chamadas ao `sun`:** em `features/<domínio>/api.ts`, usando `request()` de `api/http.ts` e os tipos de `bindings.ts`. Erros viram `ApiError` (`code` do `ApiErrorBody` ou `network`); a UI mostra o `message`, e um `unauthorized` encerra a sessão (`onSessionExpired`).
 - **Cache:** as chamadas de chat usam TanStack Query, com o `QueryClient` criado pelo `ChatLayout`, que continua aberto durante uma queda e invalida tudo quando a `Session` muda (ADR 0012 e 0013). O WebSocket não escreve no cache: as mensagens que chegam por ele ficam em estado do `ChatLayout` e são juntas às páginas por `id`, e a presença também fica nesse estado.
-- **Voz:** o `livekit-client` só é importado em `features/voice/room.ts`, de forma preguiçosa, e os testes usam uma sala simulada. A voz não depende da `Session`: ela sobrevive a uma queda do WebSocket.
+- **Voz e tela:** o `livekit-client` só é importado em `features/voice/room.ts`, de forma preguiçosa, e os testes usam uma sala simulada. A sala conecta com `autoSubscribe: false`: `room.ts` assina os microfones sozinho, e a tela só é assinada por quem clica em **Assistir**, para poupar o upload do host. A voz não depende da `Session`: ela sobrevive a uma queda do WebSocket.
 - **Sessão:** o token fica em `features/auth/storage.ts` (ADR 0010) e nunca vai para `console` nem para mensagens de erro. A conexão com o `/ws` passa por `connectSession` (ADR 0009), e quem precisa dela recebe a `Session`: `send` envia e `subscribe` recebe as mensagens do servidor. Ela envia `ping` sozinha e avisa pelo `onClose` se a conexão cair, e o `App` reconecta sem desmontar o chat.
 - **Testes:** Vitest + Testing Library em jsdom, ao lado do código (`*.test.ts(x)`). `fetch` com `vi.stubGlobal`, WebSocket com `src/test/fakeWebSocket.ts`. Rode as ferramentas com `npm run`/`npm test`, não com `npx`: fora de `moon/`, o `npx` baixa do registro um pacote qualquer de mesmo nome (`tsc`, `biome`).
 - Estrutura conforme crescer: `src/features/<domínio>/` (componentes + hooks + chamadas), `src/components/` para componentes genéricos.

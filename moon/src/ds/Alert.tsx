@@ -3,7 +3,7 @@ import { cx } from "./cx";
 import "./Alert.css";
 
 export interface AlertProps {
-  tone?: "danger" | "success";
+  tone?: "danger" | "success" | "info";
   /** Botão ao lado da mensagem, como "Tentar agora". */
   action?: ReactNode;
   className?: string;

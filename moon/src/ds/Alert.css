@@ -17,3 +17,7 @@
 .ds-alert-success {
   color: var(--success);
 }
+
+.ds-alert-info {
+  color: var(--text-primary);
+}

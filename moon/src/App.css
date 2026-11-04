@@ -315,3 +315,48 @@ aside.member-list {
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+
+.voice-participant .voice-watch {
+  margin-left: auto;
+}
+
+.screen-stage {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.screen-stage-bar,
+.screen-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.screen-stage-bar {
+  justify-content: space-between;
+}
+
+.screen-stage video {
+  display: block;
+  width: 100%;
+  max-height: 50vh;
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-raised);
+  object-fit: contain;
+}
+
+.screen-stage:fullscreen {
+  padding: var(--space-3);
+  box-sizing: border-box;
+  margin: 0;
+  background-color: var(--surface-base);
+}
+
+.screen-stage:fullscreen video {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}

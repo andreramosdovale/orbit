@@ -37,8 +37,8 @@ Cada fase vira uma ou mais specs em [`specs/`](specs/README.md) antes de começa
 
 ## Fase 4: Transmissão de tela v1
 
-- [ ] Transmissão via `getDisplayMedia` no webview (resultado rápido, sem áudio por app)
-- [ ] Assistir transmissões de outros
+- [ ] Transmissão via `getDisplayMedia` no webview, sem áudio ([spec 012](specs/012-transmissao-de-tela.md), falta o teste com a tela real)
+- [ ] Assistir transmissões de outros ([spec 012](specs/012-transmissao-de-tela.md), falta o teste em outro PC)
 
 ## Fase 5: Transmissão de tela v2 (nativa)
 

@@ -17,6 +17,8 @@ import type {
 } from "../../bindings";
 import { Alert, Avatar, Button, NavItem, SectionTitle, Surface, TextField } from "../../ds";
 import type { Session } from "../auth/session";
+import { ScreenStage } from "../voice/ScreenStage";
+import { useVoiceRoom } from "../voice/useVoiceRoom";
 import { VoiceSection } from "../voice/VoiceSection";
 import { createChannel, listChannels } from "./api";
 import { ChannelMessages } from "./ChannelMessages";
@@ -93,6 +95,8 @@ function ChatScreen({
   onSessionExpired,
 }: ChatLayoutProps) {
   const queryClient = useQueryClient();
+  const voice = useVoiceRoom({ server, token, onSessionExpired });
+  const watched = voice.state.participants.find((p) => p.id === voice.state.watching);
   const channelsQuery = useQuery({
     queryKey: ["channels"],
     queryFn: () => listChannels(server, token),
@@ -240,6 +244,7 @@ function ChatScreen({
           server={server}
           token={token}
           announced={announcedVoice}
+          voice={voice}
           onSessionExpired={onSessionExpired}
         />
 
@@ -260,6 +265,26 @@ function ChatScreen({
           >
             Conexão perdida. Reconectando...
           </Alert>
+        )}
+        {voice.state.notice && (
+          <Alert
+            tone="info"
+            className="connection-lost"
+            action={
+              <Button size="sm" onClick={voice.dismissNotice}>
+                Fechar
+              </Button>
+            }
+          >
+            {voice.state.notice}
+          </Alert>
+        )}
+        {watched && (
+          <ScreenStage
+            name={watched.name}
+            videoRef={voice.setScreenVideo}
+            onStop={voice.stopWatching}
+          />
         )}
         {selected && (
           <>
