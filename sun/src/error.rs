@@ -26,6 +26,8 @@ pub enum ApiError {
     InvalidChannelName,
     #[error("nome de canal já existe")]
     ChannelNameTaken,
+    #[error("canal inexistente")]
+    UnknownChannel,
     /// A causa só vai para o log; o cliente recebe uma mensagem genérica.
     #[error("erro interno")]
     Internal(#[source] BoxError),
@@ -80,6 +82,11 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 ApiErrorCode::ChannelNameTaken,
                 "Já existe um canal com esse nome.".to_owned(),
+            ),
+            Self::UnknownChannel => (
+                StatusCode::NOT_FOUND,
+                ApiErrorCode::UnknownChannel,
+                "Esse canal não existe mais.".to_owned(),
             ),
             Self::Internal(source) => {
                 tracing::error!(error = ?source, "erro interno ao processar requisição");

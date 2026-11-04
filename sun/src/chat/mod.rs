@@ -3,21 +3,45 @@
 mod channels;
 pub mod messages;
 
-use axum::extract::State;
-use axum::extract::rejection::JsonRejection;
+use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use orbit_shared::{CreateChannelRequest, ServerMessage, TextChannel};
+use orbit_shared::{CreateChannelRequest, MessagePage, ServerMessage, TextChannel};
+use serde::Deserialize;
 
 use crate::AppState;
 use crate::auth::AuthUser;
 use crate::error::ApiError;
 
 use channels::ChannelError;
+use messages::MessageError;
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/channels", get(list_handler).post(create_handler))
+    Router::new()
+        .route("/channels", get(list_handler).post(create_handler))
+        .route("/channels/{id}/messages", get(history_handler))
+}
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    before: Option<u32>,
+}
+
+#[tracing::instrument(skip_all)]
+async fn history_handler(
+    _user: AuthUser,
+    State(state): State<AppState>,
+    channel_id: Result<Path<u32>, PathRejection>,
+    query: Result<Query<HistoryQuery>, QueryRejection>,
+) -> Result<Json<MessagePage>, ApiError> {
+    let Path(channel_id) =
+        channel_id.map_err(|rejection| ApiError::InvalidRequest(rejection.body_text()))?;
+    let Query(query) =
+        query.map_err(|rejection| ApiError::InvalidRequest(rejection.body_text()))?;
+    let page = messages::message_page(&state.db, channel_id, query.before).await?;
+    Ok(Json(page))
 }
 
 #[tracing::instrument(skip_all)]
@@ -54,6 +78,15 @@ async fn create_handler(
         channel: channel.clone(),
     });
     Ok((StatusCode::CREATED, Json(channel)))
+}
+
+impl From<MessageError> for ApiError {
+    fn from(err: MessageError) -> Self {
+        match err {
+            MessageError::UnknownChannel => Self::UnknownChannel,
+            other => Self::internal(other),
+        }
+    }
 }
 
 impl From<ChannelError> for ApiError {

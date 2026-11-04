@@ -15,3 +15,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0009](0009-autenticacao-do-ws-na-primeira-mensagem.md) | Autenticação do WebSocket pela primeira mensagem | Aceita |
 | [0010](0010-token-no-localstorage.md) | Token de sessão guardado no `localStorage` | Aceita |
 | [0011](0011-retencao-de-mensagens.md) | Mensagens de texto guardadas sem limite de tempo | Aceita |
+| [0012](0012-tanstack-query-no-front.md) | TanStack Query para as chamadas de chat e o cache em memória do `moon` | Aceita |

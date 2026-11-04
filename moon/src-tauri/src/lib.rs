@@ -3,7 +3,7 @@
 
 use orbit_shared::{
     ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, LoginRequest, LoginResponse,
-    MessageRejectReason, RegisterRequest, ServerMessage, TextChannel, User,
+    MessagePage, MessageRejectReason, RegisterRequest, ServerMessage, TextChannel, User,
 };
 use specta_typescript::Typescript;
 use tauri_specta::{Builder, collect_commands};
@@ -32,6 +32,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .typ::<LoginResponse>()
         .typ::<TextChannel>()
         .typ::<ChatMessage>()
+        .typ::<MessagePage>()
         .typ::<MessageRejectReason>()
         .typ::<CreateChannelRequest>()
         .typ::<ApiErrorBody>()

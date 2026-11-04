@@ -164,9 +164,24 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* A posição ao carregar mensagens anteriores é ajustada pelo MessageList. */
+  overflow-anchor: none;
+}
+
+.chat-main .messages ul {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.chat-main .load-older {
+  display: block;
+  margin: 4px auto 8px;
+}
+
+.chat-main .messages-error {
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 .chat-main .message {
