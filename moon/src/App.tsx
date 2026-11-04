@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { commands } from "./bindings";
+import { Alert, Button, Surface } from "./ds";
 import { Login } from "./features/auth/Login";
 import { Register } from "./features/auth/Register";
 import { connectSession, retryDelayMs, type Session, SessionError } from "./features/auth/session";
@@ -151,18 +152,16 @@ function App() {
         <p role="status">Conectando...</p>
       )}
       {!chat && view.kind === "offline" && view.failures > 0 && (
-        <div className="auth-form">
-          <p className="error" role="alert">
-            Não foi possível conectar ao servidor.
-          </p>
+        <Surface className="auth-form">
+          <Alert>Não foi possível conectar ao servidor.</Alert>
           <p>O Orbit continua tentando sozinho.</p>
-          <button type="button" disabled={view.trying} onClick={retryNow}>
+          <Button variant="primary" disabled={view.trying} onClick={retryNow}>
             Tentar de novo
-          </button>
-          <button type="button" className="link" onClick={logout}>
+          </Button>
+          <Button variant="link" onClick={logout}>
             Sair
-          </button>
-        </div>
+          </Button>
+        </Surface>
       )}
       <p className="version">Orbit v{version}</p>
     </main>

@@ -1,0 +1,53 @@
+/* Única fonte de cor, raio, espaçamento e tipografia do moon (spec 011). */
+:root {
+  color-scheme: dark;
+
+  /* Raios: quanto maior a superfície, maior o raio. Controles são pílulas. */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* Espaçamento em grade de 4px: perto dentro do grupo, longe entre grupos. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Alturas dos controles: alvos fáceis de acertar e alinhados entre si. */
+  --control-sm: 32px;
+  --control-md: 40px;
+
+  /* Profundidade por camadas: cada nível fica um pouco mais claro. */
+  --surface-base: #0f1017;
+  --surface-raised: #171923;
+  --surface-overlay: #20232f;
+  --surface-hover: #2a2d3b;
+  --surface-active: #343848;
+
+  --text-primary: #eceef4;
+  --text-muted: #a0a4b6;
+  --text-on-accent: #0f1017;
+
+  /* Cor só quando comunica algo: ação principal, sucesso ou erro. */
+  --accent: #8b7cf6;
+  --accent-hover: #a194f8;
+  --accent-soft: #2d2950;
+  --success: #5fd08a;
+  --danger: #f58a8d;
+
+  /* Escala tipográfica com poucos degraus, para a hierarquia ficar clara. */
+  --font-sans: system-ui, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+
+  --duration-fast: 120ms;
+}

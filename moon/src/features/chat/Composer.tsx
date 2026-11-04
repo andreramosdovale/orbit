@@ -1,4 +1,5 @@
 import { type KeyboardEvent, useState } from "react";
+import { Alert, TextArea } from "../../ds";
 
 /** O mesmo limite do `sun`. Conta caracteres, não unidades UTF-16. */
 const MAX_CONTENT_CHARS = 2000;
@@ -35,10 +36,10 @@ export function Composer({ channelName, error, offline = false, onSend }: Compos
 
   return (
     <div className="composer">
-      <textarea
+      <TextArea
         aria-label={`Mensagem para #${channelName}`}
         placeholder={`Mensagem para #${channelName}`}
-        rows={2}
+        rows={1}
         value={text}
         onChange={(e) => {
           setText(e.target.value);
@@ -46,16 +47,8 @@ export function Composer({ channelName, error, offline = false, onSend }: Compos
         }}
         onKeyDown={onKeyDown}
       />
-      {tooLong && (
-        <p className="error" role="alert">
-          A mensagem passa do limite de {MAX_CONTENT_CHARS} caracteres.
-        </p>
-      )}
-      {!tooLong && error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      {tooLong && <Alert>A mensagem passa do limite de {MAX_CONTENT_CHARS} caracteres.</Alert>}
+      {!tooLong && error && <Alert>{error}</Alert>}
     </div>
   );
 }

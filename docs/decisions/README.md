@@ -19,3 +19,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0013](0013-reconexao-automatica.md) | Reconexão automática mantendo a tela e o cache | Aceita |
 | [0014](0014-livekit-no-host.md) | LiveKit no host: scripts, chaves e tokens sem SDK | Aceita |
 | [0015](0015-permissao-do-microfone.md) | O core do `moon` permite o microfone, sem diálogo | Aceita |
+| [0016](0016-design-system-proprio.md) | Design system próprio, em CSS puro | Aceita |

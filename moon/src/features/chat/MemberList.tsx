@@ -1,4 +1,5 @@
 import type { User, UserPresence } from "../../bindings";
+import { Avatar, SectionTitle, Surface, VisuallyHidden } from "../../ds";
 
 interface MemberListProps {
   /** `null` enquanto o `presence_snapshot` não chega. */
@@ -19,15 +20,15 @@ function Section({ title, members }: { title: string; members: UserPresence[] })
   if (members.length === 0) return null;
   return (
     <section>
-      <h3>
+      <SectionTitle>
         {title} — {members.length}
-      </h3>
+      </SectionTitle>
       <ul>
         {members.map(({ user, online }) => (
           <li key={user.id} className={online ? "member online" : "member offline"}>
-            <span className="presence-dot" aria-hidden="true" />
+            <Avatar name={user.username} size="sm" status={online ? "online" : "offline"} />
             {user.username}
-            <span className="visually-hidden"> ({online ? "online" : "offline"})</span>
+            <VisuallyHidden> ({online ? "online" : "offline"})</VisuallyHidden>
           </li>
         ))}
       </ul>
@@ -38,7 +39,7 @@ function Section({ title, members }: { title: string; members: UserPresence[] })
 /** Quem do grupo está online e quem está offline. */
 export function MemberList({ members }: MemberListProps) {
   return (
-    <aside className="member-list" aria-label="Pessoas">
+    <Surface as="aside" className="member-list" aria-label="Pessoas">
       {members === null ? (
         <p>Carregando...</p>
       ) : (
@@ -47,6 +48,6 @@ export function MemberList({ members }: MemberListProps) {
           <Section title="Offline" members={members.filter((m) => !m.online).sort(byName)} />
         </>
       )}
-    </aside>
+    </Surface>
   );
 }

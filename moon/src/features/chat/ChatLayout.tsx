@@ -15,6 +15,7 @@ import type {
   UserPresence,
   VoiceChannel,
 } from "../../bindings";
+import { Alert, Avatar, Button, NavItem, SectionTitle, Surface, TextField } from "../../ds";
 import type { Session } from "../auth/session";
 import { VoiceSection } from "../voice/VoiceSection";
 import { createChannel, listChannels } from "./api";
@@ -188,55 +189,51 @@ function ChatScreen({
 
   return (
     <div className="chat-layout">
-      <aside className="chat-sidebar">
-        <p role="status">
-          {connectionLost ? "Sem conexão, entrou como" : "Conectado como"}{" "}
-          <strong>{session.user.username}</strong>
-        </p>
+      <Surface as="aside" className="chat-sidebar">
+        <div className="sidebar-user">
+          <Avatar name={session.user.username} size="sm" />
+          <p role="status">
+            {connectionLost ? "Sem conexão, entrou como" : "Conectado como"}{" "}
+            <strong>{session.user.username}</strong>
+          </p>
+        </div>
 
         {!channels && channelsQuery.isFetching && <p>Carregando canais...</p>}
         {!channels && !channelsQuery.isFetching && channelsQuery.error && (
           <>
-            <p className="error" role="alert">
-              {errorMessage(channelsQuery.error)}
-            </p>
-            <button type="button" onClick={() => channelsQuery.refetch()}>
-              Tentar de novo
-            </button>
+            <Alert>{errorMessage(channelsQuery.error)}</Alert>
+            <Button onClick={() => channelsQuery.refetch()}>Tentar de novo</Button>
           </>
         )}
         {channels && (
-          <>
+          <section className="sidebar-section" aria-label="Canais de texto">
+            <SectionTitle>Canais</SectionTitle>
             <ul className="channels">
               {channels.map((channel) => (
                 <li key={channel.id}>
-                  <button
-                    type="button"
-                    className="channel"
+                  <NavItem
                     aria-current={channel.id === selected?.id ? "true" : undefined}
                     onClick={() => selectChannel(channel.id)}
                   >
                     # {channel.name}
-                  </button>
+                  </NavItem>
                 </li>
               ))}
             </ul>
 
             <form className="new-channel" onSubmit={onCreate}>
-              <label>
-                Novo canal
-                <input required value={newName} onChange={(e) => setNewName(e.target.value)} />
-              </label>
-              <button type="submit" disabled={create.isPending}>
+              <TextField
+                label="Novo canal"
+                required
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? "Criando..." : "Criar"}
-              </button>
-              {createError && (
-                <p className="error" role="alert">
-                  {errorMessage(createError)}
-                </p>
-              )}
+              </Button>
+              {createError && <Alert>{errorMessage(createError)}</Alert>}
             </form>
-          </>
+          </section>
         )}
 
         <VoiceSection
@@ -246,23 +243,23 @@ function ChatScreen({
           onSessionExpired={onSessionExpired}
         />
 
-        <button type="button" className="logout" onClick={onLogout}>
+        <Button variant="ghost" size="sm" className="logout" onClick={onLogout}>
           Sair
-        </button>
-      </aside>
+        </Button>
+      </Surface>
 
       <section className="chat-main">
         {connectionLost && (
-          <div className="connection-lost" role="alert">
-            <span>Conexão perdida. Reconectando...</span>
-            <button
-              type="button"
-              disabled={connectionLost.retrying}
-              onClick={connectionLost.onRetry}
-            >
-              Tentar de novo
-            </button>
-          </div>
+          <Alert
+            className="connection-lost"
+            action={
+              <Button size="sm" disabled={connectionLost.retrying} onClick={connectionLost.onRetry}>
+                Tentar de novo
+              </Button>
+            }
+          >
+            Conexão perdida. Reconectando...
+          </Alert>
         )}
         {selected && (
           <>

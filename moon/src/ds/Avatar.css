@@ -1,0 +1,33 @@
+.ds-avatar {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-md);
+  height: var(--control-md);
+  border-radius: var(--radius-full);
+  background-color: var(--surface-hover);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: outline-color var(--duration-fast);
+}
+
+/* Fica no CSS para não virar texto da página: o nome já está ao lado. */
+.ds-avatar::before {
+  content: attr(data-initial);
+}
+
+.ds-avatar-sm {
+  width: 28px;
+  height: 28px;
+  font-size: var(--text-xs);
+}
+
+.ds-avatar .ds-status-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  outline: 2px solid var(--surface-raised);
+}

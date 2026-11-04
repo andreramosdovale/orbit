@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import type { ChatMessage } from "../../bindings";
+import { Alert, Avatar, Button } from "../../ds";
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -97,27 +98,28 @@ export function MessageList({
     <div className="messages" ref={list} onScroll={onScroll}>
       {error && (
         <div className="messages-error">
-          <p className="error" role="alert">
-            {error}
-          </p>
-          <button type="button" onClick={onRetry}>
+          <Alert>{error}</Alert>
+          <Button size="sm" onClick={onRetry}>
             Tentar de novo
-          </button>
+          </Button>
         </div>
       )}
       {!error && hasMore && (
-        <button type="button" className="load-older" disabled={loadingOlder} onClick={onLoadOlder}>
+        <Button size="sm" className="load-older" disabled={loadingOlder} onClick={onLoadOlder}>
           {loadingOlder ? "Carregando..." : "Carregar mensagens anteriores"}
-        </button>
+        </Button>
       )}
       <ul>
         {messages.map((message) => (
           <li key={message.id} className="message">
-            <header>
-              <strong>{message.author.username}</strong>{" "}
-              <time dateTime={message.created_at}>{formatDateTime(message.created_at)}</time>
-            </header>
-            <p>{message.content}</p>
+            <Avatar name={message.author.username} />
+            <div className="message-body">
+              <header>
+                <strong>{message.author.username}</strong>{" "}
+                <time dateTime={message.created_at}>{formatDateTime(message.created_at)}</time>
+              </header>
+              <p>{message.content}</p>
+            </div>
           </li>
         ))}
       </ul>

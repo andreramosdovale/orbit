@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api/http";
 import type { VoiceChannel } from "../../bindings";
+import { Alert, Button, NavItem, SectionTitle, TextField } from "../../ds";
 import { createVoiceChannel, listVoiceChannels } from "./api";
 import { useVoiceRoom } from "./useVoiceRoom";
 import { VoicePanel } from "./VoicePanel";
@@ -63,24 +64,20 @@ export function VoiceSection({ server, token, announced, onSessionExpired }: Voi
   const createError = create.error && !isUnauthorized(create.error) ? create.error : null;
 
   return (
-    <section className="voice-section" aria-label="Salas de voz">
-      <h3>Salas de voz</h3>
+    <section className="sidebar-section" aria-label="Salas de voz">
+      <SectionTitle>Salas de voz</SectionTitle>
       {channelsQuery.error && !channelsQuery.data && !channelsQuery.isFetching && (
         <>
-          <p className="error" role="alert">
-            {errorMessage(channelsQuery.error)}
-          </p>
-          <button type="button" onClick={() => channelsQuery.refetch()}>
+          <Alert>{errorMessage(channelsQuery.error)}</Alert>
+          <Button size="sm" onClick={() => channelsQuery.refetch()}>
             Recarregar salas
-          </button>
+          </Button>
         </>
       )}
       <ul className="voice-channels">
         {channels.map((channel) => (
           <li key={channel.id}>
-            <button
-              type="button"
-              className="channel"
+            <NavItem
               aria-label={`Entrar na sala ${channel.name}`}
               aria-current={channel.id === state.channelId ? "true" : undefined}
               onClick={() => {
@@ -88,16 +85,12 @@ export function VoiceSection({ server, token, announced, onSessionExpired }: Voi
               }}
             >
               🔊 {channel.name}
-            </button>
+            </NavItem>
           </li>
         ))}
       </ul>
 
-      {state.error && (
-        <p className="error" role="alert">
-          {state.error}
-        </p>
-      )}
+      {state.error && <Alert>{state.error}</Alert>}
       {state.channelId !== null && (
         <VoicePanel
           channelName={current?.name ?? ""}
@@ -108,18 +101,16 @@ export function VoiceSection({ server, token, announced, onSessionExpired }: Voi
       )}
 
       <form className="new-channel" onSubmit={onCreate}>
-        <label>
-          Nova sala
-          <input required value={newName} onChange={(e) => setNewName(e.target.value)} />
-        </label>
-        <button type="submit" disabled={create.isPending}>
+        <TextField
+          label="Nova sala"
+          required
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <Button type="submit" disabled={create.isPending}>
           {create.isPending ? "Criando..." : "Criar sala"}
-        </button>
-        {createError && (
-          <p className="error" role="alert">
-            {errorMessage(createError)}
-          </p>
-        )}
+        </Button>
+        {createError && <Alert>{errorMessage(createError)}</Alert>}
       </form>
     </section>
   );

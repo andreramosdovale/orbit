@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { ApiError } from "../../api/http";
+import { Alert, Button, Surface, TextField } from "../../ds";
 import { register } from "./api";
 import { loadServer, saveServer } from "./storage";
 
@@ -42,71 +43,59 @@ export function Register({ onRegistered, onBack }: RegisterProps) {
   const sending = status.kind === "sending";
 
   return (
-    <form className="auth-form" onSubmit={onSubmit}>
+    <Surface as="form" className="auth-form" onSubmit={onSubmit}>
       <h1>Criar conta</h1>
 
-      <label>
-        Servidor
-        <input
-          type="url"
-          required
-          placeholder="http://100.x.y.z:7700"
-          value={server}
-          onChange={(e) => setServer(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Servidor"
+        type="url"
+        required
+        placeholder="http://100.x.y.z:7700"
+        value={server}
+        onChange={(e) => setServer(e.target.value)}
+      />
 
-      <label>
-        Usuário
-        <input
-          required
-          minLength={3}
-          maxLength={32}
-          pattern="[A-Za-z0-9_]+"
-          title="Letras, números ou _"
-          autoComplete="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Usuário"
+        required
+        minLength={3}
+        maxLength={32}
+        pattern="[A-Za-z0-9_]+"
+        title="Letras, números ou _"
+        autoComplete="username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
 
-      <label>
-        Senha
-        <input
-          type="password"
-          required
-          minLength={8}
-          maxLength={128}
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Senha"
+        type="password"
+        required
+        minLength={8}
+        maxLength={128}
+        autoComplete="new-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
 
-      <label>
-        Confirmar senha
-        <input
-          type="password"
-          required
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Confirmar senha"
+        type="password"
+        required
+        autoComplete="new-password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+      />
 
-      <button type="submit" disabled={sending}>
+      <Button type="submit" variant="primary" disabled={sending}>
         {sending ? "Criando..." : "Criar conta"}
-      </button>
+      </Button>
 
-      {status.kind === "error" && (
-        <p className="error" role="alert">
-          {status.message}
-        </p>
-      )}
+      {status.kind === "error" && <Alert>{status.message}</Alert>}
 
-      <button type="button" className="link" onClick={onBack}>
+      <Button variant="link" onClick={onBack}>
         Voltar para o login
-      </button>
-    </form>
+      </Button>
+    </Surface>
   );
 }
