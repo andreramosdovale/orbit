@@ -1,10 +1,11 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { QueryClient, QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
+import { type FormEvent, useEffect, useState } from "react";
 import { ApiError } from "../../api/http";
 import type { ChatMessage, MessageRejectReason, ServerMessage, TextChannel } from "../../bindings";
 import type { Session } from "../auth/session";
 import { createChannel, listChannels } from "./api";
+import { ChannelMessages } from "./ChannelMessages";
 import { Composer } from "./Composer";
-import { MessageList } from "./MessageList";
 
 interface ChatLayoutProps {
   server: string;
@@ -15,19 +16,37 @@ interface ChatLayoutProps {
   onSessionExpired: () => void;
 }
 
-type Channels =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; channels: TextChannel[]; selectedId: number | null };
-
 const REJECT_MESSAGES: Record<MessageRejectReason, string> = {
   invalid_content: "A mensagem deve ter de 1 a 2000 caracteres.",
   unknown_channel: "Esse canal não existe mais.",
   internal: "Não foi possível enviar a mensagem. Tente novamente.",
 };
 
+const NO_MESSAGES: ChatMessage[] = [];
+
+/**
+ * Cache da conexão atual (ADR 0012). Os dados não envelhecem, porque o WebSocket
+ * entrega o que há de novo, e um erro aparece na hora, com **Tentar de novo**.
+ */
+function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: Number.POSITIVE_INFINITY,
+        retry: false,
+      },
+      mutations: { retry: false },
+    },
+  });
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : "Erro inesperado.";
+}
+
+function isUnauthorized(err: unknown): boolean {
+  return err instanceof ApiError && err.code === "unauthorized";
 }
 
 /** Acrescenta os canais que ainda não estão na lista. */
@@ -36,68 +55,59 @@ function mergeChannels(channels: TextChannel[], extra: TextChannel[]): TextChann
   return [...channels, ...extra.filter((c) => !known.has(c.id))];
 }
 
-/** Tela depois de entrar: canais na lateral, conversa do canal selecionado no centro. */
-export function ChatLayout({
-  server,
-  token,
-  session,
-  onLogout,
-  onSessionExpired,
-}: ChatLayoutProps) {
-  const [state, setState] = useState<Channels>({ kind: "loading" });
-  const [messages, setMessages] = useState<Record<number, ChatMessage[]>>({});
+/** Tela depois de entrar. Ela existe enquanto a conexão durar, e o cache junto com ela. */
+export function ChatLayout(props: ChatLayoutProps) {
+  const [queryClient] = useState(createQueryClient);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ChatScreen {...props} />
+    </QueryClientProvider>
+  );
+}
+
+/** Canais na lateral, conversa do canal selecionado no centro. */
+function ChatScreen({ server, token, session, onLogout, onSessionExpired }: ChatLayoutProps) {
+  const channelsQuery = useQuery({
+    queryKey: ["channels"],
+    queryFn: () => listChannels(server, token),
+  });
+  // Criados ou anunciados nesta conexão: a resposta da lista pode já não incluí-los.
+  const [extraChannels, setExtraChannels] = useState<TextChannel[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Só o que chegou pelo WebSocket. O histórico fica no cache (ADR 0012).
+  const [liveMessages, setLiveMessages] = useState<Record<number, ChatMessage[]>>({});
   const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
-  // Canais anunciados enquanto a lista carrega: a resposta pode já não incluí-los.
-  const announced = useRef<TextChannel[]>([]);
-  const loading = state.kind === "loading";
+
+  const create = useMutation({
+    mutationFn: (name: string) => createChannel(server, token, { name }),
+    onSuccess: (channel) => {
+      setExtraChannels((current) => mergeChannels(current, [channel]));
+      setSelectedId(channel.id);
+      setNewName("");
+    },
+    onError: (err) => {
+      if (isUnauthorized(err)) onSessionExpired();
+    },
+  });
 
   useEffect(() => {
-    if (!loading) return;
-    let cancelled = false;
-    listChannels(server, token)
-      .then((channels) => {
-        if (cancelled) return;
-        const merged = mergeChannels(channels, announced.current);
-        setState({ kind: "ready", channels: merged, selectedId: merged[0]?.id ?? null });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.code === "unauthorized") {
-          onSessionExpired();
-        } else {
-          setState({ kind: "error", message: errorMessage(err) });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, server, token, onSessionExpired]);
+    if (isUnauthorized(channelsQuery.error)) onSessionExpired();
+  }, [channelsQuery.error, onSessionExpired]);
 
   useEffect(() => {
     const onServerMessage = (msg: ServerMessage) => {
       switch (msg.type) {
         case "new_message": {
           const { message } = msg;
-          setMessages((current) => ({
+          setLiveMessages((current) => ({
             ...current,
             [message.channel_id]: [...(current[message.channel_id] ?? []), message],
           }));
           break;
         }
         case "channel_created":
-          announced.current = mergeChannels(announced.current, [msg.channel]);
-          setState((current) =>
-            current.kind === "ready"
-              ? {
-                  ...current,
-                  channels: mergeChannels(current.channels, [msg.channel]),
-                  selectedId: current.selectedId ?? msg.channel.id,
-                }
-              : current,
-          );
+          setExtraChannels((current) => mergeChannels(current, [msg.channel]));
           break;
         case "message_rejected":
           setSendError(REJECT_MESSAGES[msg.reason]);
@@ -109,41 +119,19 @@ export function ChatLayout({
     return session.subscribe(onServerMessage);
   }, [session]);
 
-  async function onCreate(event: FormEvent) {
+  function onCreate(event: FormEvent) {
     event.preventDefault();
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const channel = await createChannel(server, token, { name: newName });
-      setState((current) =>
-        current.kind === "ready"
-          ? {
-              kind: "ready",
-              channels: mergeChannels(current.channels, [channel]),
-              selectedId: channel.id,
-            }
-          : current,
-      );
-      setNewName("");
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "unauthorized") {
-        onSessionExpired();
-        return;
-      }
-      setCreateError(errorMessage(err));
-    } finally {
-      setCreating(false);
-    }
+    create.mutate(newName);
   }
-
-  const ready = state.kind === "ready" ? state : null;
-  const selected = ready?.channels.find((c) => c.id === ready.selectedId);
 
   function selectChannel(channelId: number) {
-    if (!ready) return;
     setSendError(null);
-    setState({ ...ready, selectedId: channelId });
+    setSelectedId(channelId);
   }
+
+  const channels = channelsQuery.data ? mergeChannels(channelsQuery.data, extraChannels) : null;
+  const selected = channels?.find((c) => c.id === selectedId) ?? channels?.[0];
+  const createError = create.error && !isUnauthorized(create.error) ? create.error : null;
 
   return (
     <div className="chat-layout">
@@ -152,26 +140,26 @@ export function ChatLayout({
           Conectado como <strong>{session.user.username}</strong>
         </p>
 
-        {state.kind === "loading" && <p>Carregando canais...</p>}
-        {state.kind === "error" && (
+        {!channels && channelsQuery.isFetching && <p>Carregando canais...</p>}
+        {!channels && !channelsQuery.isFetching && channelsQuery.error && (
           <>
             <p className="error" role="alert">
-              {state.message}
+              {errorMessage(channelsQuery.error)}
             </p>
-            <button type="button" onClick={() => setState({ kind: "loading" })}>
+            <button type="button" onClick={() => channelsQuery.refetch()}>
               Tentar de novo
             </button>
           </>
         )}
-        {ready && (
+        {channels && (
           <>
             <ul className="channels">
-              {ready.channels.map((channel) => (
+              {channels.map((channel) => (
                 <li key={channel.id}>
                   <button
                     type="button"
                     className="channel"
-                    aria-current={channel.id === ready.selectedId ? "true" : undefined}
+                    aria-current={channel.id === selected?.id ? "true" : undefined}
                     onClick={() => selectChannel(channel.id)}
                   >
                     # {channel.name}
@@ -185,12 +173,12 @@ export function ChatLayout({
                 Novo canal
                 <input required value={newName} onChange={(e) => setNewName(e.target.value)} />
               </label>
-              <button type="submit" disabled={creating}>
-                {creating ? "Criando..." : "Criar"}
+              <button type="submit" disabled={create.isPending}>
+                {create.isPending ? "Criando..." : "Criar"}
               </button>
               {createError && (
                 <p className="error" role="alert">
-                  {createError}
+                  {errorMessage(createError)}
                 </p>
               )}
             </form>
@@ -206,9 +194,17 @@ export function ChatLayout({
         {selected && (
           <>
             <h2># {selected.name}</h2>
-            <MessageList messages={messages[selected.id] ?? []} />
-            <Composer
+            <ChannelMessages
               key={selected.id}
+              server={server}
+              token={token}
+              channelId={selected.id}
+              currentUserId={session.user.id}
+              liveMessages={liveMessages[selected.id] ?? NO_MESSAGES}
+              onSessionExpired={onSessionExpired}
+            />
+            <Composer
+              key={`composer-${selected.id}`}
               channelName={selected.name}
               error={sendError}
               onSend={(content) => {

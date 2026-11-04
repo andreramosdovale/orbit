@@ -27,6 +27,9 @@ pub use ws::{MAX_MESSAGE_SIZE, WS_AUTH_TIMEOUT};
 /// Quantas mensagens o `hub` guarda para quem está atrasado. Quem passa disso é desconectado.
 pub const HUB_CAPACITY: usize = 256;
 
+/// Quantas mensagens vêm em cada página do histórico.
+pub const MESSAGE_PAGE_SIZE: u8 = 50;
+
 /// Tamanho máximo do corpo de uma requisição HTTP. A API só recebe JSON pequeno.
 pub const MAX_BODY_SIZE: usize = 16 * 1024;
 

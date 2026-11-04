@@ -19,6 +19,7 @@ Contrato entre `sun` (servidor) e `moon` (app). Os tipos vivem em [`shared/src/l
 | `POST` | `/auth/login` | não | `200` + `LoginResponse` | Login, devolve um JWT ([spec 002](specs/002-login-jwt.md)) |
 | `GET` | `/channels` | `Bearer` | `200` + `TextChannel[]` | Lista os canais de texto ([spec 005](specs/005-canais-de-texto.md)) |
 | `POST` | `/channels` | `Bearer` | `201` + `TextChannel` | Cria um canal de texto ([spec 005](specs/005-canais-de-texto.md)) |
+| `GET` | `/channels/{id}/messages` | `Bearer` | `200` + `MessagePage` | Histórico de um canal, em páginas ([spec 007](specs/007-historico-paginado.md)) |
 
 Corpos HTTP acima de **16 KiB** (`sun::MAX_BODY_SIZE`) são recusados. O CORS só libera as origens do `moon`: as do build (`sun::ALLOWED_ORIGINS`) e `http://localhost` nas portas de dev (`sun::DEV_PORTS`, 1420 a 1439).
 
@@ -84,16 +85,36 @@ Corpo `CreateChannelRequest`:
 
 Sucesso: `201` com `TextChannel`, ou seja, `{ "id": 2, "name": "música" }`.
 
+### `GET /channels/{id}/messages`
+
+Parâmetro opcional `before` (id de mensagem). Sucesso: `200` com `MessagePage`, com as mensagens da mais antiga para a mais nova:
+
+```json
+{
+  "messages": [
+    { "id": 7, "channel_id": 1, "author": { "id": 1, "username": "fulano" }, "content": "oi", "created_at": "2026-11-03T12:00:00.000Z" }
+  ],
+  "has_more": true
+}
+```
+
+- Sem `before`: as **50** mensagens mais recentes do canal (`sun::MESSAGE_PAGE_SIZE`). O cliente não escolhe o tamanho da página.
+- Com `before`: as 50 mais recentes entre as de `id` menor que `before`, que não precisa ser o id de uma mensagem existente.
+- `has_more`: existem mensagens mais antigas que as da página. Para buscá-las, use como `before` o menor `id` da página.
+- Canal sem mensagens: lista vazia e `has_more: false`.
+- `id` do canal ou `before` que não sejam um inteiro de 0 a 2³²−1 recebem `400 invalid_request`.
+
 ### Erros da API REST
 
 Toda resposta de erro tem corpo `ApiErrorBody`: `{ "code": "<ApiErrorCode>", "message": "<texto para o usuário>" }`.
 
 | Status | `code` | Quando |
 |---|---|---|
-| `400` | `invalid_request` | JSON malformado ou campo faltando |
+| `400` | `invalid_request` | JSON malformado, campo faltando ou parâmetro de rota inválido |
 | `400` | `invalid_username` | Usuário fora das regras |
 | `400` | `invalid_password` | Senha fora das regras |
 | `400` | `invalid_channel_name` | Nome de canal fora das regras |
+| `404` | `unknown_channel` | O canal pedido não existe |
 | `401` | `invalid_credentials` | Login com usuário ou senha incorretos |
 | `401` | `unauthorized` | Token ausente, inválido ou expirado em rota protegida |
 | `409` | `username_taken` | Usuário já existe |

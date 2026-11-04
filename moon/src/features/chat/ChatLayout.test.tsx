@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ServerMessage } from "../../bindings";
+import type { ChatMessage, ServerMessage } from "../../bindings";
 import type { Session } from "../auth/session";
 import { ChatLayout } from "./ChatLayout";
 
@@ -58,13 +58,51 @@ function renderLayout() {
   return { onSessionExpired, send, emit };
 }
 
-function stubResponses(...responses: Array<() => Response>) {
-  const fetchMock = vi.fn();
-  for (const respond of responses) {
-    fetchMock.mockImplementationOnce(async () => respond());
-  }
+const EMPTY_PAGE = { messages: [], has_more: false };
+
+function pathOf(url: string): string {
+  const { pathname, search } = new URL(url);
+  return `${pathname}${search}`;
+}
+
+/**
+ * `sun` simulado: `history` responde ao histórico, por caminho (canal vazio se não
+ * estiver lá), e `responses` às outras chamadas, em ordem.
+ */
+function stubServer(
+  responses: Array<() => Response>,
+  history: Record<string, () => Response | Promise<Response>> = {},
+) {
+  const queue = [...responses];
+  const fetchMock = vi.fn(async (url: string) => {
+    const path = pathOf(url);
+    if (path.includes("/messages")) {
+      return history[path]?.() ?? jsonResponse(200, EMPTY_PAGE);
+    }
+    const respond = queue.shift();
+    if (!respond) throw new Error(`chamada inesperada no teste: ${path}`);
+    return respond();
+  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+function stubResponses(...responses: Array<() => Response>) {
+  return stubServer(responses);
+}
+
+function historyCalls(fetchMock: ReturnType<typeof stubServer>): string[] {
+  return fetchMock.mock.calls.map(([url]) => pathOf(url)).filter((p) => p.includes("/messages"));
+}
+
+function stored(id: number, channelId = GERAL.id): ChatMessage {
+  return {
+    id,
+    channel_id: channelId,
+    author: { id: 2, username: "ciclano" },
+    content: `guardada ${id}`,
+    created_at: "2026-11-03T12:00:00.000Z",
+  };
 }
 
 function channelButton(name: string) {
@@ -130,9 +168,12 @@ describe("ChatLayout", () => {
   });
 
   it("falha ao carregar mostra Tentar de novo, que carrega de novo", async () => {
-    const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError("failed to fetch"));
-    fetchMock.mockImplementationOnce(async () => jsonResponse(200, [GERAL]));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubResponses(
+      () => {
+        throw new TypeError("failed to fetch");
+      },
+      () => jsonResponse(200, [GERAL]),
+    );
     renderLayout();
 
     expect((await screen.findByRole("alert")).textContent).toBe(
@@ -142,7 +183,7 @@ describe("ChatLayout", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
 
     expect(await screen.findByRole("heading", { name: "# geral" })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.filter(([url]) => pathOf(url) === "/channels")).toHaveLength(2);
   });
 
   it("a mensagem do canal selecionado aparece com autor e texto", async () => {
@@ -201,13 +242,18 @@ describe("ChatLayout", () => {
 
   it("um canal anunciado enquanto a lista carrega não se perde", async () => {
     let respond: (res: Response) => void = () => {};
-    vi.stubGlobal("fetch", () => new Promise((resolve) => (respond = resolve)));
+    const channels = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    vi.stubGlobal("fetch", async (url: string) =>
+      pathOf(url) === "/channels" ? channels : jsonResponse(200, EMPTY_PAGE),
+    );
     const { emit } = renderLayout();
 
     emit({ type: "channel_created", channel: JOGOS });
-    await act(async () => respond(jsonResponse(200, [GERAL])));
+    respond(jsonResponse(200, [GERAL]));
 
-    expect(channelButton("jogos")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "# jogos" })).toBeTruthy();
     expect(channelButton("geral").getAttribute("aria-current")).toBe("true");
   });
 
@@ -240,6 +286,162 @@ describe("ChatLayout", () => {
     fireEvent.change(field, { target: { value: "oi" } });
     fireEvent.keyDown(field, { key: "Enter" });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  describe("histórico", () => {
+    const GERAL_MESSAGES = `/channels/${GERAL.id}/messages`;
+    const JOGOS_MESSAGES = `/channels/${JOGOS.id}/messages`;
+
+    function page(ids: number[], hasMore = false, channelId = GERAL.id) {
+      return () =>
+        jsonResponse(200, { messages: ids.map((id) => stored(id, channelId)), has_more: hasMore });
+    }
+
+    function shownMessages(): string[] {
+      return screen
+        .getAllByText(/^(guardada|ao vivo) \d+$/)
+        .map((element) => element.textContent ?? "");
+    }
+
+    it("selecionar um canal carrega e mostra o histórico", async () => {
+      stubServer([() => jsonResponse(200, [GERAL, JOGOS])], {
+        [JOGOS_MESSAGES]: page([7], false, JOGOS.id),
+      });
+      renderLayout();
+      await screen.findByText("Nenhuma mensagem ainda.");
+
+      fireEvent.click(await screen.findByRole("button", { name: "# jogos" }));
+
+      expect(await screen.findByText("guardada 7")).toBeTruthy();
+      expect(screen.getByText("ciclano")).toBeTruthy();
+    });
+
+    it("voltar a um canal já carregado não busca de novo", async () => {
+      const fetchMock = stubServer([() => jsonResponse(200, [GERAL, JOGOS])], {
+        [GERAL_MESSAGES]: page([1]),
+      });
+      renderLayout();
+      await screen.findByText("guardada 1");
+
+      fireEvent.click(channelButton("jogos"));
+      await screen.findByText("Nenhuma mensagem ainda.");
+      fireEvent.click(channelButton("geral"));
+
+      expect(screen.getByText("guardada 1")).toBeTruthy();
+      expect(historyCalls(fetchMock)).toEqual([GERAL_MESSAGES, JOGOS_MESSAGES]);
+    });
+
+    it("o botão usa o menor id da última página e coloca as antigas antes", async () => {
+      const fetchMock = stubServer([() => jsonResponse(200, [GERAL])], {
+        [GERAL_MESSAGES]: page([20, 21], true),
+        [`${GERAL_MESSAGES}?before=20`]: page([10, 11]),
+      });
+      renderLayout();
+      await screen.findByText("guardada 21");
+
+      fireEvent.click(screen.getByRole("button", { name: "Carregar mensagens anteriores" }));
+
+      await screen.findByText("guardada 10");
+      expect(historyCalls(fetchMock)).toEqual([GERAL_MESSAGES, `${GERAL_MESSAGES}?before=20`]);
+      expect(shownMessages()).toEqual(["guardada 10", "guardada 11", "guardada 20", "guardada 21"]);
+    });
+
+    it("o botão não aparece com has_more falso", async () => {
+      stubServer([() => jsonResponse(200, [GERAL])], { [GERAL_MESSAGES]: page([1]) });
+      renderLayout();
+      await screen.findByText("guardada 1");
+
+      expect(screen.queryByRole("button", { name: "Carregar mensagens anteriores" })).toBeNull();
+    });
+
+    it("uma mensagem recebida pelo WebSocket e pela página aparece uma vez só", async () => {
+      let respond: (res: Response) => void = () => {};
+      const answer = new Promise<Response>((resolve) => {
+        respond = resolve;
+      });
+      stubServer([() => jsonResponse(200, [GERAL])], { [GERAL_MESSAGES]: () => answer });
+      const { emit } = renderLayout();
+      await screen.findByRole("heading", { name: "# geral" });
+
+      // Chega enquanto a página está a caminho, e a página também a traz.
+      emit({ type: "new_message", message: stored(5) });
+      emit({ type: "new_message", message: { ...stored(6), content: "ao vivo 6" } });
+      respond(page([4, 5])());
+
+      await screen.findByText("guardada 4");
+      expect(shownMessages()).toEqual(["guardada 4", "guardada 5", "ao vivo 6"]);
+    });
+
+    it("a resposta de um canal que deixou de estar selecionado não aparece no atual", async () => {
+      let respond: (res: Response) => void = () => {};
+      const answer = new Promise<Response>((resolve) => {
+        respond = resolve;
+      });
+      stubServer([() => jsonResponse(200, [GERAL, JOGOS])], {
+        [GERAL_MESSAGES]: () => answer,
+        [JOGOS_MESSAGES]: page([9], false, JOGOS.id),
+      });
+      renderLayout();
+      await screen.findByRole("heading", { name: "# geral" });
+
+      fireEvent.click(channelButton("jogos"));
+      await screen.findByText("guardada 9");
+      await act(async () => respond(page([1])()));
+
+      expect(screen.queryByText("guardada 1")).toBeNull();
+      // Ela fica guardada para quando o canal voltar a ser aberto.
+      fireEvent.click(channelButton("geral"));
+      expect(await screen.findByText("guardada 1")).toBeTruthy();
+    });
+
+    it("erro no carregamento mostra a mensagem, e Tentar de novo busca de novo", async () => {
+      const fails = vi.fn(() =>
+        jsonResponse(500, { code: "internal", message: "Erro no servidor." }),
+      );
+      const fetchMock = stubServer([() => jsonResponse(200, [GERAL])], {
+        [GERAL_MESSAGES]: () => (fails.mock.calls.length === 0 ? fails() : page([1])()),
+      });
+      renderLayout();
+
+      expect((await screen.findByRole("alert")).textContent).toBe("Erro no servidor.");
+      fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+
+      expect(await screen.findByText("guardada 1")).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(historyCalls(fetchMock)).toEqual([GERAL_MESSAGES, GERAL_MESSAGES]);
+    });
+
+    it("erro em uma página antiga não perde o que já apareceu, e Tentar de novo pede a mesma", async () => {
+      const older = `${GERAL_MESSAGES}?before=20`;
+      const fails = vi.fn(() =>
+        jsonResponse(500, { code: "internal", message: "Erro no servidor." }),
+      );
+      const fetchMock = stubServer([() => jsonResponse(200, [GERAL])], {
+        [GERAL_MESSAGES]: page([20], true),
+        [older]: () => (fails.mock.calls.length === 0 ? fails() : page([10])()),
+      });
+      renderLayout();
+      await screen.findByText("guardada 20");
+
+      fireEvent.click(screen.getByRole("button", { name: "Carregar mensagens anteriores" }));
+      expect((await screen.findByRole("alert")).textContent).toBe("Erro no servidor.");
+      expect(screen.getByText("guardada 20")).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+
+      expect(await screen.findByText("guardada 10")).toBeTruthy();
+      expect(historyCalls(fetchMock)).toEqual([GERAL_MESSAGES, older, older]);
+    });
+
+    it("unauthorized no histórico avisa que a sessão expirou", async () => {
+      stubServer([() => jsonResponse(200, [GERAL])], {
+        [GERAL_MESSAGES]: () =>
+          jsonResponse(401, { code: "unauthorized", message: "Sua sessão expirou." }),
+      });
+      const { onSessionExpired } = renderLayout();
+
+      await waitFor(() => expect(onSessionExpired).toHaveBeenCalledOnce());
+    });
   });
 
   it("um 401 ao criar avisa que a sessão expirou", async () => {

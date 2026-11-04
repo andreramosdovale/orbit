@@ -34,6 +34,8 @@ export type ApiErrorCode =
 "invalid_channel_name" | 
 /**  Já existe um canal com esse nome. */
 "channel_name_taken" | 
+/**  O canal pedido não existe. */
+"unknown_channel" | 
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
 
@@ -72,6 +74,14 @@ export type LoginResponse = {
 	/**  JWT HS256, válido por 30 dias. No `/ws`, vai na mensagem `auth`; no REST, em `Authorization: Bearer <token>`. */
 	token: string,
 	user: User,
+};
+
+/**  Uma página do histórico de um canal: resposta de `GET /channels/{id}/messages`. */
+export type MessagePage = {
+	/**  Da mais antiga para a mais nova. */
+	messages: ChatMessage[],
+	/**  Existem mensagens mais antigas que as desta página. */
+	has_more: boolean,
 };
 
 /**  Por que o servidor recusou uma mensagem. */

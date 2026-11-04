@@ -41,6 +41,7 @@ flowchart LR
 - **Autenticação:** `moon` faz login via REST e recebe um JWT, que guarda no `localStorage` ([ADR 0010](decisions/0010-token-no-localstorage.md)) e envia como primeira mensagem do `/ws` para o `sun` saber quem é aquela conexão ([ADR 0009](decisions/0009-autenticacao-do-ws-na-primeira-mensagem.md)).
 - **Canais:** `moon` lista e cria canais via REST (`/channels`), com o token em `Authorization: Bearer`. Um canal novo é anunciado a todos pelo WebSocket.
 - **Chat:** `moon` → WebSocket `/ws` do `sun` → `sun` persiste no SQLite e publica no `hub` (`tokio::sync::broadcast`), que repassa a todas as conexões autenticadas, inclusive a de quem enviou. As mensagens ficam guardadas sem limite de tempo ([ADR 0011](decisions/0011-retencao-de-mensagens.md)).
+- **Histórico:** ao abrir um canal, `moon` busca as mensagens anteriores via REST, em páginas (`/channels/{id}/messages`), e as junta por `id` com o que chega pelo WebSocket. Elas ficam em um cache em memória que dura uma conexão ([ADR 0012](decisions/0012-tanstack-query-no-front.md)).
 - **Voz:** `moon` pede um token ao `sun` (REST), conecta direto no LiveKit pelo SDK JS no webview.
 - **Transmissão de tela:** o core Rust do `moon` captura a janela (Windows Graphics Capture) e o áudio do processo (WASAPI process loopback), e publica no LiveKit como um participante separado (`<usuario>#screen`). Quem assiste recebe pelo webview como qualquer outra track. Ver [ADR 0006](decisions/0006-transmissao-de-tela-hibrida.md).
 

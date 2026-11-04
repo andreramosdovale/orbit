@@ -16,6 +16,7 @@
     "dev:app": "node scripts/dev.mjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.105.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",

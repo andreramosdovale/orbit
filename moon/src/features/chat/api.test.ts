@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/http";
-import { createChannel, listChannels } from "./api";
+import { createChannel, listChannels, listMessages } from "./api";
 
 const SERVER = "http://host:7700";
 
@@ -44,5 +44,30 @@ describe("canais", () => {
 
     expect(err).toBeInstanceOf(ApiError);
     expect(err.code).toBe("unauthorized");
+  });
+});
+
+describe("histórico", () => {
+  const page = { messages: [], has_more: false };
+
+  it("listMessages sem before busca as mais recentes, com o token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, page));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(listMessages(SERVER, "a.b.c", 3)).resolves.toEqual(page);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://host:7700/channels/3/messages");
+    expect(init.method).toBe("GET");
+    expect(init.headers.Authorization).toBe("Bearer a.b.c");
+  });
+
+  it("listMessages com before pede as anteriores", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, page));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listMessages(SERVER, "a.b.c", 3, 42);
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://host:7700/channels/3/messages?before=42");
   });
 });

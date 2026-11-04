@@ -104,6 +104,16 @@ pub struct ChatMessage {
     pub created_at: String,
 }
 
+/// Uma página do histórico de um canal: resposta de `GET /channels/{id}/messages`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct MessagePage {
+    /// Da mais antiga para a mais nova.
+    pub messages: Vec<ChatMessage>,
+    /// Existem mensagens mais antigas que as desta página.
+    pub has_more: bool,
+}
+
 /// Por que o servidor recusou uma mensagem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -155,6 +165,8 @@ pub enum ApiErrorCode {
     InvalidChannelName,
     /// Já existe um canal com esse nome.
     ChannelNameTaken,
+    /// O canal pedido não existe.
+    UnknownChannel,
     /// Erro interno do servidor. Detalhes só no log do `sun`.
     Internal,
 }
@@ -366,6 +378,35 @@ mod tests {
         assert_eq!(
             serde_json::to_value(req).unwrap(),
             json!({ "name": "música" })
+        );
+    }
+
+    #[test]
+    fn message_page_wire_format() {
+        let page = MessagePage {
+            messages: vec![sample_message()],
+            has_more: true,
+        };
+        assert_eq!(
+            serde_json::to_value(page).unwrap(),
+            json!({
+                "messages": [{
+                    "id": 1,
+                    "channel_id": 2,
+                    "author": { "id": 3, "username": "fulano" },
+                    "content": "oi",
+                    "created_at": "2026-11-03T12:00:00.000Z",
+                }],
+                "has_more": true,
+            })
+        );
+    }
+
+    #[test]
+    fn unknown_channel_error_code_wire_format() {
+        assert_eq!(
+            serde_json::to_value(ApiErrorCode::UnknownChannel).unwrap(),
+            json!("unknown_channel")
         );
     }
 

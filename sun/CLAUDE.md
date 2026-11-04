@@ -17,9 +17,9 @@ src/
 │   ├── login.rs     # confere senha (argon2) e emite o token. Erro de domínio: LoginError
 │   └── jwt.rs       # JwtKeys: segredo no SQLite (tabela secrets), issue/verify (ADR 0008)
 ├── chat/
-│   ├── mod.rs       # routes(): GET e POST /channels (handlers finos)
+│   ├── mod.rs       # routes(): GET e POST /channels, GET /channels/{id}/messages (handlers finos)
 │   ├── channels.rs  # validação do nome, listagem e criação. Erro de domínio: ChannelError
-│   └── messages.rs  # validação e gravação de mensagens. Erro de domínio: MessageError
+│   └── messages.rs  # validação, gravação e histórico de mensagens. Erro de domínio: MessageError
 └── ws.rs            # WebSocket /ws: autentica pela 1ª mensagem (ADR 0009), depois recebe ClientMessage e responde ServerMessage
 migrations/          # SQL versionado, aplicado quando o sun sobe (sqlx::migrate!)
 tests/
@@ -27,6 +27,7 @@ tests/
 ├── auth.rs          # cadastro, login e persistência do segredo do JWT
 ├── channels.rs      # canais de texto e autenticação REST
 ├── messages.rs      # mensagens em tempo real, com conexões WebSocket reais
+├── history.rs       # histórico paginado
 ├── ws_auth.rs       # autenticação do WebSocket
 └── common/mod.rs    # helpers: state() com SQLite em memória, post_json, TestServer (connect_ws, connect_ws_authed), send/recv
 ```

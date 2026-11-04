@@ -24,6 +24,7 @@ function stubServer(
   vi.stubGlobal("fetch", async (url: string) => {
     const path = new URL(url).pathname;
     if (path === "/channels") return channels();
+    if (path.endsWith("/messages")) return jsonResponse(200, { messages: [], has_more: false });
     const route = routes[path];
     if (!route) throw new Error(`rota inesperada no teste: ${path}`);
     return route();
