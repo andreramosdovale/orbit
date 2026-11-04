@@ -1,13 +1,14 @@
-//! Chat: canais de texto.
+//! Chat: canais e mensagens de texto.
 
 mod channels;
+pub mod messages;
 
 use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use orbit_shared::{CreateChannelRequest, TextChannel};
+use orbit_shared::{CreateChannelRequest, ServerMessage, TextChannel};
 
 use crate::AppState;
 use crate::auth::AuthUser;
@@ -49,6 +50,9 @@ async fn create_handler(
         user_id = user.id,
         "canal criado"
     );
+    state.publish(ServerMessage::ChannelCreated {
+        channel: channel.clone(),
+    });
     Ok((StatusCode::CREATED, Json(channel)))
 }
 

@@ -1,12 +1,15 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/http";
-import type { TextChannel, User } from "../../bindings";
+import type { ChatMessage, MessageRejectReason, ServerMessage, TextChannel } from "../../bindings";
+import type { Session } from "../auth/session";
 import { createChannel, listChannels } from "./api";
+import { Composer } from "./Composer";
+import { MessageList } from "./MessageList";
 
 interface ChatLayoutProps {
   server: string;
   token: string;
-  user: User;
+  session: Session;
   onLogout: () => void;
   /** O servidor recusou o token em uma chamada REST. */
   onSessionExpired: () => void;
@@ -17,16 +20,38 @@ type Channels =
   | { kind: "error"; message: string }
   | { kind: "ready"; channels: TextChannel[]; selectedId: number | null };
 
+const REJECT_MESSAGES: Record<MessageRejectReason, string> = {
+  invalid_content: "A mensagem deve ter de 1 a 2000 caracteres.",
+  unknown_channel: "Esse canal não existe mais.",
+  internal: "Não foi possível enviar a mensagem. Tente novamente.",
+};
+
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : "Erro inesperado.";
 }
 
-/** Tela depois de entrar: canais na lateral, canal selecionado no centro. */
-export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: ChatLayoutProps) {
+/** Acrescenta os canais que ainda não estão na lista. */
+function mergeChannels(channels: TextChannel[], extra: TextChannel[]): TextChannel[] {
+  const known = new Set(channels.map((c) => c.id));
+  return [...channels, ...extra.filter((c) => !known.has(c.id))];
+}
+
+/** Tela depois de entrar: canais na lateral, conversa do canal selecionado no centro. */
+export function ChatLayout({
+  server,
+  token,
+  session,
+  onLogout,
+  onSessionExpired,
+}: ChatLayoutProps) {
   const [state, setState] = useState<Channels>({ kind: "loading" });
+  const [messages, setMessages] = useState<Record<number, ChatMessage[]>>({});
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  // Canais anunciados enquanto a lista carrega: a resposta pode já não incluí-los.
+  const announced = useRef<TextChannel[]>([]);
   const loading = state.kind === "loading";
 
   useEffect(() => {
@@ -35,7 +60,8 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
     listChannels(server, token)
       .then((channels) => {
         if (cancelled) return;
-        setState({ kind: "ready", channels, selectedId: channels[0]?.id ?? null });
+        const merged = mergeChannels(channels, announced.current);
+        setState({ kind: "ready", channels: merged, selectedId: merged[0]?.id ?? null });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -50,6 +76,39 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
     };
   }, [loading, server, token, onSessionExpired]);
 
+  useEffect(() => {
+    const onServerMessage = (msg: ServerMessage) => {
+      switch (msg.type) {
+        case "new_message": {
+          const { message } = msg;
+          setMessages((current) => ({
+            ...current,
+            [message.channel_id]: [...(current[message.channel_id] ?? []), message],
+          }));
+          break;
+        }
+        case "channel_created":
+          announced.current = mergeChannels(announced.current, [msg.channel]);
+          setState((current) =>
+            current.kind === "ready"
+              ? {
+                  ...current,
+                  channels: mergeChannels(current.channels, [msg.channel]),
+                  selectedId: current.selectedId ?? msg.channel.id,
+                }
+              : current,
+          );
+          break;
+        case "message_rejected":
+          setSendError(REJECT_MESSAGES[msg.reason]);
+          break;
+        default:
+          break;
+      }
+    };
+    return session.subscribe(onServerMessage);
+  }, [session]);
+
   async function onCreate(event: FormEvent) {
     event.preventDefault();
     setCreating(true);
@@ -58,7 +117,11 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
       const channel = await createChannel(server, token, { name: newName });
       setState((current) =>
         current.kind === "ready"
-          ? { kind: "ready", channels: [...current.channels, channel], selectedId: channel.id }
+          ? {
+              kind: "ready",
+              channels: mergeChannels(current.channels, [channel]),
+              selectedId: channel.id,
+            }
           : current,
       );
       setNewName("");
@@ -76,11 +139,17 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
   const ready = state.kind === "ready" ? state : null;
   const selected = ready?.channels.find((c) => c.id === ready.selectedId);
 
+  function selectChannel(channelId: number) {
+    if (!ready) return;
+    setSendError(null);
+    setState({ ...ready, selectedId: channelId });
+  }
+
   return (
     <div className="chat-layout">
       <aside className="chat-sidebar">
         <p role="status">
-          Conectado como <strong>{user.username}</strong>
+          Conectado como <strong>{session.user.username}</strong>
         </p>
 
         {state.kind === "loading" && <p>Carregando canais...</p>}
@@ -103,7 +172,7 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
                     type="button"
                     className="channel"
                     aria-current={channel.id === ready.selectedId ? "true" : undefined}
-                    onClick={() => setState({ ...ready, selectedId: channel.id })}
+                    onClick={() => selectChannel(channel.id)}
                   >
                     # {channel.name}
                   </button>
@@ -137,7 +206,16 @@ export function ChatLayout({ server, token, user, onLogout, onSessionExpired }: 
         {selected && (
           <>
             <h2># {selected.name}</h2>
-            <p>As mensagens chegam em breve.</p>
+            <MessageList messages={messages[selected.id] ?? []} />
+            <Composer
+              key={selected.id}
+              channelName={selected.name}
+              error={sendError}
+              onSend={(content) => {
+                setSendError(null);
+                session.send({ type: "send_message", channel_id: selected.id, content });
+              }}
+            />
           </>
         )}
       </section>

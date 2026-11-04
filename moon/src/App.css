@@ -142,3 +142,66 @@ body {
 .chat-main p {
   color: #8a8aa3;
 }
+
+.chat-layout {
+  /* Desconta o rodapé com a versão: quem rola é a lista de mensagens, não a janela. */
+  max-height: calc(100vh - 56px);
+  min-height: 0;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chat-main .no-messages {
+  flex: 1;
+}
+
+.chat-main .messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-main .message {
+  padding: 6px 0;
+}
+
+.chat-main .message header {
+  font-size: 14px;
+}
+
+.chat-main .message time {
+  color: #8a8aa3;
+  font-size: 12px;
+}
+
+.chat-main .message p {
+  margin: 2px 0 0;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-main .composer {
+  margin-top: 8px;
+}
+
+.chat-main .composer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  font: inherit;
+  resize: none;
+}
+
+.chat-main .composer .error {
+  margin: 4px 0 0;
+  color: #f07178;
+}

@@ -114,6 +114,61 @@ describe("connectSession", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  async function authenticated() {
+    const pending = connectSession(SERVER, "a.b.c", () => {});
+    FakeWebSocket.last.open();
+    FakeWebSocket.last.receive({ type: "auth_ok", user: USER });
+    return pending;
+  }
+
+  const MESSAGE = {
+    id: 1,
+    channel_id: 1,
+    author: USER,
+    content: "oi",
+    created_at: "2026-11-03T12:00:00.000Z",
+  };
+
+  it("send envia o JSON pelo socket", async () => {
+    const session = await authenticated();
+
+    session.send({ type: "send_message", channel_id: 1, content: "oi" });
+
+    expect(JSON.parse(FakeWebSocket.last.sent[1])).toEqual({
+      type: "send_message",
+      channel_id: 1,
+      content: "oi",
+    });
+  });
+
+  it("subscribe entrega as mensagens, e cancelar interrompe a entrega", async () => {
+    const session = await authenticated();
+    const handler = vi.fn();
+    const unsubscribe = session.subscribe(handler);
+
+    FakeWebSocket.last.receive({ type: "new_message", message: MESSAGE });
+    expect(handler).toHaveBeenCalledExactlyOnceWith({ type: "new_message", message: MESSAGE });
+
+    unsubscribe();
+    FakeWebSocket.last.receive({ type: "pong" });
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("o que chega antes da primeira assinatura é entregue a ela, uma vez", async () => {
+    const session = await authenticated();
+    FakeWebSocket.last.receive({ type: "new_message", message: MESSAGE });
+
+    const first = vi.fn();
+    const unsubscribe = session.subscribe(first);
+    expect(first).toHaveBeenCalledExactlyOnceWith({ type: "new_message", message: MESSAGE });
+    unsubscribe();
+
+    // O StrictMode assina de novo: o que já foi entregue não se repete.
+    const second = vi.fn();
+    session.subscribe(second);
+    expect(second).not.toHaveBeenCalled();
+  });
+
   it("abort cancela a tentativa e fecha o socket", async () => {
     const controller = new AbortController();
     const pending = connectSession(SERVER, "a.b.c", () => {}, controller.signal);

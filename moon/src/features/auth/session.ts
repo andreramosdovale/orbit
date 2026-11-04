@@ -22,6 +22,13 @@ export class SessionError extends Error {
 
 export interface Session {
   user: User;
+  /** Envia uma mensagem pelo WebSocket. */
+  send(message: ClientMessage): void;
+  /**
+   * Passa a entregar as mensagens do servidor a `handler`. O que chegou antes da
+   * primeira assinatura é entregue a ela. Devolve a função que cancela a assinatura.
+   */
+  subscribe(handler: (message: ServerMessage) => void): () => void;
   /** Fecha a conexão a pedido do app. Não dispara `onClose`. */
   close(): void;
 }
@@ -55,6 +62,9 @@ export function connectSession(
 
     let settled = false;
     let closedByApp = false;
+    let authenticated = false;
+    const handlers = new Set<(message: ServerMessage) => void>();
+    let backlog: ServerMessage[] = [];
 
     const fail = (kind: SessionErrorKind) => {
       if (settled) return;
@@ -74,13 +84,32 @@ export function connectSession(
     };
 
     socket.onmessage = (event) => {
-      if (settled) return;
       const msg = parseServerMessage(event.data);
+      if (authenticated) {
+        if (!msg) return;
+        if (handlers.size === 0) backlog.push(msg);
+        for (const handler of handlers) handler(msg);
+        return;
+      }
+      if (settled) return;
       if (msg?.type === "auth_ok") {
         settled = true;
+        authenticated = true;
         clearTimeout(timer);
         resolve({
           user: msg.user,
+          send(message) {
+            socket.send(JSON.stringify(message));
+          },
+          subscribe(handler) {
+            handlers.add(handler);
+            const pending = backlog;
+            backlog = [];
+            for (const message of pending) handler(message);
+            return () => {
+              handlers.delete(handler);
+            };
+          },
           close() {
             closedByApp = true;
             socket.close();

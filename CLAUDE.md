@@ -21,6 +21,7 @@ Os três crates Rust formam um Cargo workspace. A raiz guarda as versões compar
 ```sh
 cargo run -p sun                         # servidor em 0.0.0.0:7700 (SUN_ADDR para mudar)
 cd moon && npm run tauri dev             # app em modo dev (também regenera bindings.ts)
+cd moon && npm run dev:app               # o mesmo, na primeira porta livre (várias instâncias)
 
 cargo test --workspace                   # todos os testes Rust
 cargo clippy --workspace --all-targets -- -D warnings
