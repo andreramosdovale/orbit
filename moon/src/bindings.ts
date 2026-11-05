@@ -10,7 +10,7 @@ export const commands = {
 	/**  Janelas e telas que dá para transmitir. */
 	listCaptureTargets: () => __TAURI_INVOKE<CaptureTarget[]>("list_capture_targets"),
 	/**  Começa a transmitir, trocando o que já estiver no ar. */
-	startScreenShare: (target: CaptureTarget, url: string, token: string) => typedError<null, string>(__TAURI_INVOKE("start_screen_share", { target, url, token })),
+	startScreenShare: (target: CaptureTarget, url: string, token: string) => typedError<VideoEncoderKind, string>(__TAURI_INVOKE("start_screen_share", { target, url, token })),
 	/**  Para de transmitir. */
 	stopScreenShare: () => typedError<null, string>(__TAURI_INVOKE("stop_screen_share")),
 };
@@ -177,6 +177,13 @@ export type UserPresence = {
 	user: User,
 	online: boolean,
 };
+
+/**  Quem codifica o vídeo. */
+export type VideoEncoderKind = 
+/**  A placa de vídeo, em H.264. */
+"hardware" | 
+/**  O processador, em VP8. */
+"software";
 
 /**  Sala de voz. */
 export type VoiceChannel = {

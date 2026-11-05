@@ -46,7 +46,7 @@ Substituída pela Fase 5: a captura pelo webview foi removida antes do teste com
 
 - [ ] Captura de janela via Windows Graphics Capture (`windows-capture`) ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
 - [ ] Áudio do processo via WASAPI process loopback ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
-- [ ] Encoding em hardware (spec própria, porque o SDK não o oferece no Windows: [ADR 0017](decisions/0017-sdk-nativo-do-livekit.md))
+- [ ] Encoding em hardware ([spec 014](specs/014-encoding-em-hardware.md), [ADR 0018](decisions/0018-encoder-em-hardware-por-media-foundation.md), falta o teste com um jogo real)
 - [ ] Publicação via LiveKit Rust SDK como `<usuario>#screen` ([spec 013](specs/013-transmissao-nativa.md), falta o teste com um jogo real)
 
 ## Fase 6: Distribuição

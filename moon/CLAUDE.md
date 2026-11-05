@@ -18,8 +18,8 @@ src/                     # front (React)
 scripts/dev.mjs          # npm run dev:app: abre o app na primeira porta livre
 src-tauri/               # core Rust
 ├── src/lib.rs           # comandos + specta_builder() + run()
-├── src/capture/          # transmissão nativa: video.rs, audio.rs, publish.rs, commands.rs (ADR 0017)
-├── src/mic_permission.rs # libera o microfone às origens do app (ADR 0015); único trecho com unsafe
+├── src/capture/          # transmissão nativa: video.rs, audio.rs, encoder.rs (H.264 na placa; o unsafe da captura), publish.rs, commands.rs (ADR 0017 e 0018)
+├── src/mic_permission.rs # libera o microfone às origens do app (ADR 0015)
 ├── src/main.rs          # só chama moon_lib::run()
 ├── tests/bindings.rs    # regenera bindings.ts (a CI checa se mudou)
 ├── build.rs             # tauri-build + manifest do Windows para os testes
@@ -63,7 +63,7 @@ Tipos do protocolo (`orbit_shared`) que o front usa direto, como as mensagens do
 - `unsafe` e FFI do Windows (captura nativa, Fase 5) ficam isolados num módulo próprio, como `src-tauri/src/capture/`, com uma API segura para o resto do código.
 - **Testes que linkam o Tauri ficam em `src-tauri/tests/`**, não em `#[cfg(test)]` dentro de `src/`. O `build.rs` só embute o manifest do Windows em testes de integração. Sem isso, eles falham com `STATUS_ENTRYPOINT_NOT_FOUND`.
 - **Primeira compilação:** o `livekit` baixa cerca de 500 MB de WebRTC pré-compilado, e `.cargo/config.toml` liga `+crt-static` (ADR 0017). Evite um `CARGO_TARGET_DIR` com caminho muito longo: o compilador C++ deixa de achar os cabeçalhos.
-- **Testes da captura:** `cargo test -p moon --test capture -- --ignored --test-threads=1` prova o áudio isolado e o vídeo no PC de verdade. Abre uma janela e toca um tom baixo, por isso fica fora da CI.
+- **Testes da captura:** `cargo test -p moon --test capture -- --ignored --test-threads=1` prova o áudio isolado, o vídeo e o encoder em hardware no PC de verdade. Abre uma janela e toca um tom baixo, por isso fica fora da CI. Em builds de desenvolvimento, `ORBIT_TEST_NO_HARDWARE_ENCODER=1` simula um PC sem encoder.
 - Para testar a voz sem microfone real, abra o app com `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--use-fake-device-for-media-stream`.
 - Novas permissões para o webview vão em `capabilities/default.json`, sempre com o mínimo necessário.
 

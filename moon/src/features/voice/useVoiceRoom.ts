@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/http";
-import type { CaptureTarget, EndReason } from "../../bindings";
+import type { CaptureTarget, EndReason, VideoEncoderKind } from "../../bindings";
 import { livekitUrl, requestScreenToken, requestVoiceToken } from "./api";
 import { type NativeShare, nativeShare } from "./nativeShare";
 import {
@@ -22,6 +22,8 @@ export interface VoiceState {
   sharePending: boolean;
   /** Você está transmitindo. */
   sharing: boolean;
+  /** Quem codifica a transmissão no ar. */
+  shareEncoder: VideoEncoderKind | null;
   /** O que oferecer no seletor de transmissão, com ele aberto. */
   shareTargets: CaptureTarget[] | null;
   /** Id de quem está sendo assistido. */
@@ -40,6 +42,7 @@ const IDLE: VoiceState = {
   muted: false,
   sharePending: false,
   sharing: false,
+  shareEncoder: null,
   shareTargets: null,
   watching: null,
   notice: null,
@@ -168,7 +171,7 @@ export function useVoiceRoom({
   const toggleShare = useCallback(async () => {
     if (state.sharing) {
       endShare();
-      setState((s) => ({ ...s, sharing: false, sharePending: false }));
+      setState((s) => ({ ...s, sharing: false, shareEncoder: null, sharePending: false }));
       return;
     }
     setState((s) => ({ ...s, sharePending: true, error: null }));
@@ -214,20 +217,30 @@ export function useVoiceRoom({
           shareActive.current = false;
           stopListening.current?.();
           stopListening.current = null;
-          setState((s) => ({ ...s, sharing: false, sharePending: false, ...SHARE_ENDED[reason] }));
+          setState((s) => ({
+            ...s,
+            sharing: false,
+            shareEncoder: null,
+            sharePending: false,
+            ...SHARE_ENDED[reason],
+          }));
         });
         if (current !== shareAttempt.current) {
           unlisten();
           return;
         }
         stopListening.current = unlisten;
-        await share.start(target, livekitUrl(server, screen.livekit_port), screen.token);
+        const shareEncoder = await share.start(
+          target,
+          livekitUrl(server, screen.livekit_port),
+          screen.token,
+        );
         if (current !== shareAttempt.current) {
           // Saiu da sala enquanto ela começava.
           share.stop().catch(() => {});
           return;
         }
-        setState((s) => ({ ...s, sharing: true, sharePending: false }));
+        setState((s) => ({ ...s, sharing: true, shareEncoder, sharePending: false }));
       } catch (err) {
         if (current !== shareAttempt.current) return;
         shareActive.current = false;

@@ -221,7 +221,7 @@ Gerados em `moon/src/bindings.ts` como `commands.*`.
 |---|---|---|
 | `appVersion()` | `string` | Versão do app |
 | `listCaptureTargets()` | `CaptureTarget[]` | Janelas e telas que dá para transmitir, sem as do próprio Orbit |
-| `startScreenShare(target, url, token)` | `Result<null, string>` | Começa a transmitir pelo core Rust |
+| `startScreenShare(target, url, token)` | `Result<VideoEncoderKind, string>` | Começa a transmitir pelo core Rust. Devolve `hardware` (H.264 na placa de vídeo) ou `software` (VP8 no processador) |
 | `stopScreenShare()` | `Result<null, string>` | Para de transmitir |
 
 Evento do core para o front, em `events.screenShareEnded`: `{ reason }`, com `target_closed`, `connection_lost` ou `failed`, quando a transmissão acaba sem ter sido parada.

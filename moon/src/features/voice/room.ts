@@ -80,6 +80,7 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
   const audioElements = new Set<HTMLMediaElement>();
   let watchedId: string | null = null;
   let watchedTrack: import("livekit-client").RemoteTrack | null = null;
+  let watchedAudio: import("livekit-client").RemoteTrack | null = null;
   let screenVideo: HTMLVideoElement | null = null;
 
   // O vídeo e o áudio da transmissão andam juntos: só são baixados por quem assiste.
@@ -101,23 +102,24 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
       element.remove();
     }
   };
+  // O áudio some na hora: o aviso do SDK pode demorar ou nem chegar quando a transmissão acaba.
+  const forgetWatched = () => {
+    if (watchedAudio) removeAudio(watchedAudio);
+    watchedAudio = null;
+    watchedId = null;
+    watchedTrack = null;
+  };
   const stopWatching = () => {
     if (watchedId !== null) {
       for (const publication of screenPublications(watchedId)) {
-        // O áudio some na hora: o aviso do SDK só chega depois de uma renegociação.
-        if (publication.kind === Track.Kind.Audio && publication.track) {
-          removeAudio(publication.track);
-        }
         publication.setSubscribed(false);
       }
     }
     if (watchedTrack && screenVideo) watchedTrack.detach(screenVideo);
-    watchedId = null;
-    watchedTrack = null;
+    forgetWatched();
   };
   const endWatching = () => {
-    watchedId = null;
-    watchedTrack = null;
+    forgetWatched();
     events.onWatchedScreenEnded();
   };
 
@@ -189,6 +191,14 @@ export const connectVoiceRoom: ConnectVoiceRoom = async (url, token, events) => 
         showWatchedTrack();
       }
       return;
+    }
+    if (publication.source === Track.Source.ScreenShareAudio) {
+      // Chegou depois de parar de assistir: não pode tocar.
+      if (!isWatched(participant.identity)) {
+        publication.setSubscribed(false);
+        return;
+      }
+      watchedAudio = track;
     }
     const element = track.attach();
     audioElements.add(element);

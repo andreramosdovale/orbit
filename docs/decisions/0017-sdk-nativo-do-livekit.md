@@ -1,6 +1,6 @@
 # 0017. Transmissão nativa com o SDK Rust do LiveKit, em VP8
 
-- **Status:** Aceita
+- **Status:** Aceita, alterada pela [0018](0018-encoder-em-hardware-por-media-foundation.md)
 - **Data:** 2026-11-04
 
 ## Contexto

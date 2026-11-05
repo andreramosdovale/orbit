@@ -188,6 +188,32 @@ where
         .map_err(|err| VideoError::Start(err.to_string()))
 }
 
+/// O tamanho inicial do encoder. O real vem no primeiro quadro, que recria o encoder se diferir.
+pub fn target_size(target: &CaptureTarget) -> Result<(u32, u32), VideoError> {
+    let (width, height) = match target {
+        CaptureTarget::Window { id, .. } => {
+            let hwnd: usize = id.parse().map_err(|_| VideoError::TargetGone)?;
+            let window = Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void);
+            let (width, height) = window
+                .width()
+                .ok()
+                .zip(window.height().ok())
+                .ok_or(VideoError::TargetGone)?;
+            (width.max(2) as u32, height.max(2) as u32)
+        }
+        CaptureTarget::Screen { index, .. } => {
+            let monitor =
+                Monitor::from_index(*index as usize).map_err(|_| VideoError::TargetGone)?;
+            monitor
+                .width()
+                .ok()
+                .zip(monitor.height().ok())
+                .ok_or(VideoError::TargetGone)?
+        }
+    };
+    Ok(fit_size(width, height))
+}
+
 /// Começa a capturar. Sem a borda amarela quando o Windows permite.
 pub fn start(target: &CaptureTarget, sink: FrameSink) -> Result<VideoCapture, VideoError> {
     let flags: Flags = Arc::new(Mutex::new(Some(sink)));

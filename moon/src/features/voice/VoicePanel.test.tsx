@@ -28,6 +28,7 @@ function setup(overrides: Partial<VoiceState> = {}, sharing = false) {
     muted: false,
     sharePending: false,
     sharing,
+    shareEncoder: null,
     shareTargets: null,
     watching: null,
     notice: null,
@@ -90,6 +91,15 @@ describe("VoicePanel", () => {
       fireEvent.click(screen.getByRole("button", { name: "Transmitir tela" }));
       expect(onToggleShare).toHaveBeenCalledOnce();
       expect(screen.queryByText("Você está transmitindo")).toBeNull();
+    });
+
+    it.each([
+      ["hardware", "Você está transmitindo pela placa de vídeo"],
+      ["software", "Você está transmitindo pelo processador"],
+    ] as const)("com o encoder %s, o aviso diz qual é", (shareEncoder, text) => {
+      setup({ shareEncoder }, true);
+
+      expect(screen.getByText(text)).toBeTruthy();
     });
 
     it("no ar, avisa e oferece parar", () => {

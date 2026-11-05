@@ -43,7 +43,7 @@ function fakeShare() {
   const unlisten = vi.fn();
   return {
     listTargets: vi.fn().mockResolvedValue([GAME]),
-    start: vi.fn().mockResolvedValue(undefined),
+    start: vi.fn().mockResolvedValue("hardware"),
     stop: vi.fn().mockResolvedValue(undefined),
     onEnded: vi.fn(async (listener: (reason: EndReason) => void) => {
       ended = listener;
@@ -249,6 +249,7 @@ describe("useVoiceRoom", () => {
       const [url] = vi.mocked(fetch).mock.lastCall as [string];
       expect(url).toBe("http://host:7700/voice-channels/1/screen-token");
       expect(result.current.sharing).toBe(true);
+      expect(result.current.state.shareEncoder).toBe("hardware");
       expect(result.current.state.shareTargets).toBeNull();
     });
 
@@ -362,8 +363,8 @@ describe("useVoiceRoom", () => {
       const share = fakeShare();
       let finish = () => {};
       share.start.mockReturnValue(
-        new Promise<void>((resolve) => {
-          finish = resolve;
+        new Promise<"hardware">((resolve) => {
+          finish = () => resolve("hardware");
         }),
       );
       const { result } = await joined(fakeRoom(), share);

@@ -2,12 +2,16 @@
 
 use super::CaptureTarget;
 use super::audio::{self, CHANNELS, SAMPLE_RATE, SAMPLES_PER_CHANNEL};
+use super::encoder::{EncodedUnit, EncoderOutput, HardwareEncoder, Nv12Frame};
 use super::video::{self, FrameSink, MAX_FRAMERATE, MAX_HEIGHT, MAX_WIDTH, VideoCapture};
 use livekit::options::{AudioEncoding, TrackPublishOptions, VideoCodec, VideoEncoding};
 use livekit::prelude::*;
 use livekit::webrtc::audio_frame::AudioFrame;
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 use livekit::webrtc::audio_source::{AudioSourceOptions, RtcAudioSource};
+use livekit::webrtc::prelude::I420Buffer;
+use livekit::webrtc::rtp_sender::VideoEncoderBackend;
+use livekit::webrtc::video_frame::{EncodedFrameType, EncodedVideoCodec, EncodedVideoFrame};
 use livekit::webrtc::video_source::native::NativeVideoSource;
 use livekit::webrtc::video_source::{RtcVideoSource, VideoResolution};
 use serde::{Deserialize, Serialize};
@@ -29,6 +33,16 @@ pub enum EndReason {
     Failed,
 }
 
+/// Quem codifica o vídeo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoEncoderKind {
+    /// A placa de vídeo, em H.264.
+    Hardware,
+    /// O processador, em VP8.
+    Software,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ShareError {
     #[error("Não foi possível conectar a transmissão ao servidor.")]
@@ -44,7 +58,49 @@ pub struct ScreenShare {
     room: Room,
     video: VideoCapture,
     audio: Option<JoinHandle<()>>,
+    encoder: Option<Arc<HardwareEncoder>>,
+    encoder_kind: VideoEncoderKind,
     stopping: Arc<AtomicBool>,
+}
+
+/// Leva o vídeo codificado pela placa ao LiveKit, e os pedidos do LiveKit ao encoder.
+struct SourceOutput {
+    source: NativeVideoSource,
+    on_failed: Box<dyn FnMut() + Send>,
+}
+
+impl EncoderOutput for SourceOutput {
+    fn on_unit(&mut self, unit: &EncodedUnit) {
+        self.source.capture_encoded_frame(&EncodedVideoFrame {
+            codec: EncodedVideoCodec::H264,
+            payload: &unit.payload,
+            timestamp_us: unit.timestamp_us,
+            frame_type: if unit.key {
+                EncodedFrameType::Key
+            } else {
+                EncodedFrameType::Delta
+            },
+            resolution: VideoResolution {
+                width: unit.width,
+                height: unit.height,
+            },
+            frame_metadata: None,
+        });
+    }
+
+    fn take_keyframe_request(&mut self) -> bool {
+        self.source.take_keyframe_request()
+    }
+
+    fn take_bitrate_request(&mut self) -> Option<u32> {
+        self.source
+            .take_rate_control_request()
+            .map(|request| u32::try_from(request.target_bitrate_bps).unwrap_or(u32::MAX))
+    }
+
+    fn on_failed(&mut self) {
+        (self.on_failed)();
+    }
 }
 
 /// Começa a transmitir. `on_ended` é chamado, no máximo uma vez, se ela acabar sozinha.
@@ -73,16 +129,43 @@ pub async fn start(
         })
     };
 
-    let video_source = NativeVideoSource::new(
-        VideoResolution {
-            width: MAX_WIDTH,
-            height: MAX_HEIGHT,
-        },
-        true,
-    );
+    // O encoder abre antes de publicar: a escolha define o codec da publicação.
+    let (width, height) = video::target_size(&target).map_err(|_| ShareError::Target)?;
+    let encoded_source = NativeVideoSource::new_encoded(VideoResolution { width, height });
+    let encoder_finish = finish.clone();
+    let output = SourceOutput {
+        source: encoded_source.clone(),
+        on_failed: Box::new(move || encoder_finish(EndReason::Failed)),
+    };
+    let encoder =
+        tokio::task::spawn_blocking(move || HardwareEncoder::start(width, height, output))
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .map(Arc::new);
+    if let Some(encoder) = &encoder {
+        eprintln!("transmissão pela placa de vídeo: {}", encoder.name());
+    }
+    let encoder_kind = if encoder.is_some() {
+        VideoEncoderKind::Hardware
+    } else {
+        VideoEncoderKind::Software
+    };
+
+    let video_source = if encoder.is_some() {
+        encoded_source
+    } else {
+        NativeVideoSource::new(
+            VideoResolution {
+                width: MAX_WIDTH,
+                height: MAX_HEIGHT,
+            },
+            true,
+        )
+    };
     let video_track =
         LocalVideoTrack::create_video_track("screen", RtcVideoSource::Native(video_source.clone()));
-    let video_options = TrackPublishOptions {
+    let mut video_options = TrackPublishOptions {
         source: TrackSource::Screenshare,
         video_codec: VideoCodec::VP8,
         video_encoding: Some(VideoEncoding {
@@ -92,6 +175,10 @@ pub async fn start(
         simulcast: false,
         ..TrackPublishOptions::default()
     };
+    if encoder.is_some() {
+        video_options.video_codec = VideoCodec::H264;
+        video_options.video_encoder = VideoEncoderBackend::PreEncoded;
+    }
     let published = room
         .local_participant()
         .publish_track(LocalTrack::Video(video_track), video_options)
@@ -152,16 +239,25 @@ pub async fn start(
     }
 
     let video_finish = finish.clone();
-    let sink = FrameSink::to_source(
-        video_source,
-        Box::new(move |error| {
-            video_finish(if error.is_some() {
-                EndReason::Failed
-            } else {
-                EndReason::TargetClosed
-            });
-        }),
-    );
+    let on_video_ended: video::OnEnded = Box::new(move |error| {
+        video_finish(if error.is_some() {
+            EndReason::Failed
+        } else {
+            EndReason::TargetClosed
+        });
+    });
+    let sink = match &encoder {
+        Some(encoder) => {
+            let encoder = encoder.clone();
+            FrameSink {
+                on_frame: Box::new(move |buffer: &I420Buffer| {
+                    encoder.push(Nv12Frame::from_i420(buffer));
+                }),
+                on_ended: Some(on_video_ended),
+            }
+        }
+        None => FrameSink::to_source(video_source, on_video_ended),
+    };
     let video = match video::start(&target, sink) {
         Ok(video) => video,
         Err(_) => {
@@ -187,19 +283,29 @@ pub async fn start(
         room,
         video,
         audio: audio_thread,
+        encoder,
+        encoder_kind,
         stopping,
     })
 }
 
 impl ScreenShare {
+    pub fn encoder_kind(&self) -> VideoEncoderKind {
+        self.encoder_kind
+    }
+
     /// Para a captura e sai da sala.
     pub async fn stop(self) {
         self.stopping.store(true, Ordering::SeqCst);
         // Parar a captura espera a thread dela, que não pode segurar o runtime.
         let video = self.video;
         let audio = self.audio;
+        let encoder = self.encoder;
         let _ = tokio::task::spawn_blocking(move || {
             video.stop();
+            if let Some(encoder) = encoder {
+                encoder.stop();
+            }
             if let Some(thread) = audio {
                 let _ = thread.join();
             }
