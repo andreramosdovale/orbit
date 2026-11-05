@@ -3131,6 +3131,8 @@ version = "0.1.0"
 dependencies = [
  "livekit",
  "orbit-shared",
+ "reqwest 0.12.28",
+ "semver",
  "serde",
  "serde_json",
  "specta",

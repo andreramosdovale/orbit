@@ -13,6 +13,10 @@ export const commands = {
 	startScreenShare: (target: CaptureTarget, url: string, token: string) => typedError<VideoEncoderKind, string>(__TAURI_INVOKE("start_screen_share", { target, url, token })),
 	/**  Para de transmitir. */
 	stopScreenShare: () => typedError<null, string>(__TAURI_INVOKE("stop_screen_share")),
+	/**  Procura uma versão nova. Em build de desenvolvimento, nunca encontra. */
+	checkForUpdate: () => typedError<AvailableUpdate | null, string>(__TAURI_INVOKE("check_for_update")),
+	/**  Baixa a versão mais recente, abre o instalador e fecha o app. O instalador reabre o app. */
+	installUpdate: () => typedError<null, string>(__TAURI_INVOKE("install_update")),
 };
 
 /** Events */
@@ -52,6 +56,11 @@ export type ApiErrorCode =
 "voice_unavailable" | 
 /**  Erro interno do servidor. Detalhes só no log do `sun`. */
 "internal";
+
+/**  Uma versão mais nova que a instalada. */
+export type AvailableUpdate = {
+	version: string,
+};
 
 /**  O que dá para transmitir. */
 export type CaptureTarget = 

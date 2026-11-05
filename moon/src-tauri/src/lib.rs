@@ -3,6 +3,7 @@
 
 pub mod capture;
 pub mod mic_permission;
+pub mod update;
 
 use orbit_shared::{
     ApiErrorBody, ChatMessage, ClientMessage, CreateChannelRequest, CreateVoiceChannelRequest,
@@ -30,6 +31,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             capture::commands::list_capture_targets,
             capture::commands::start_screen_share,
             capture::commands::stop_screen_share,
+            update::check_for_update,
+            update::install_update,
         ])
         .events(collect_events![capture::commands::ScreenShareEnded])
         // Tipos do protocolo usados direto pelo front no WebSocket.
