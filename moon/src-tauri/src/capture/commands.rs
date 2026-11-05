@@ -1,6 +1,6 @@
 //! Comandos e evento da transmissão, usados pelo front por `bindings.ts`.
 
-use super::publish::{self, EndReason, ScreenShare};
+use super::publish::{self, EndReason, ScreenShare, VideoEncoderKind};
 use super::{CaptureTarget, list_targets};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -55,7 +55,7 @@ pub async fn start_screen_share(
     target: CaptureTarget,
     url: String,
     token: String,
-) -> Result<(), String> {
+) -> Result<VideoEncoderKind, String> {
     state.stop().await;
 
     let generation = {
@@ -88,8 +88,9 @@ pub async fn start_screen_share(
     let share = publish::start(target, &url, &token, on_ended)
         .await
         .map_err(|err| err.to_string())?;
+    let encoder_kind = share.encoder_kind();
     state.running.lock().await.1 = Some(Running { generation, share });
-    Ok(())
+    Ok(encoder_kind)
 }
 
 /// Para de transmitir.

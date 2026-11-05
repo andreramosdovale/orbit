@@ -3,6 +3,7 @@
 
 pub mod audio;
 pub mod commands;
+pub mod encoder;
 pub mod publish;
 pub mod video;
 

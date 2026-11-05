@@ -1,3 +1,4 @@
+import type { VideoEncoderKind } from "../../bindings";
 import { Avatar, Button, SectionTitle, Surface, VisuallyHidden } from "../../ds";
 import type { VoiceState } from "./useVoiceRoom";
 
@@ -11,6 +12,11 @@ interface VoicePanelProps {
   onWatch: (participantId: string) => void;
   onLeave: () => void;
 }
+
+const SHARING_TEXT: Record<VideoEncoderKind, string> = {
+  hardware: "Você está transmitindo pela placa de vídeo",
+  software: "Você está transmitindo pelo processador",
+};
 
 const STATUS_TEXT: Partial<Record<VoiceState["status"], string>> = {
   connecting: "Conectando...",
@@ -32,7 +38,11 @@ export function VoicePanel({
     <Surface as="section" tone="overlay" className="voice-panel" aria-label="Sala de voz atual">
       <SectionTitle>Em {channelName}</SectionTitle>
       {statusText && <p className="voice-status">{statusText}</p>}
-      {sharing && <p className="voice-status">Você está transmitindo</p>}
+      {sharing && (
+        <p className="voice-status">
+          {state.shareEncoder ? SHARING_TEXT[state.shareEncoder] : "Você está transmitindo"}
+        </p>
+      )}
       <ul>
         {state.participants.map((participant) => (
           <li

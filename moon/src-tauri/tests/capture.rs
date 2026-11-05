@@ -2,6 +2,10 @@
 //! rode com `cargo test -p moon --test capture -- --ignored --test-threads=1`.
 
 use moon_lib::capture::audio::{self, AudioChunker};
+use moon_lib::capture::encoder::{
+    EncodedUnit, EncoderOutput, HardwareEncoder, Nv12Frame, available_encoders, clamp_bitrate,
+    parse_vendor_id, vendor_rank,
+};
 use moon_lib::capture::video::{self, FrameSink, fit_size};
 use moon_lib::capture::{CaptureTarget, list_targets, offered_targets};
 use std::f64::consts::TAU;
@@ -264,4 +268,170 @@ fn window_capture_delivers_frames_and_reports_closing() {
         "fechar a janela deveria avisar o fim"
     );
     capture.stop();
+}
+
+#[test]
+fn nv12_keeps_luma_and_interleaves_chroma() {
+    use livekit::webrtc::prelude::I420Buffer;
+    let mut buffer = I420Buffer::new(4, 2);
+    {
+        let (y, u, v) = buffer.data_mut();
+        y.fill(10);
+        u.fill(20);
+        v.fill(30);
+    }
+    let frame = Nv12Frame::from_i420(&buffer);
+    assert_eq!((frame.width, frame.height), (4, 2));
+    assert_eq!(frame.data, [10, 10, 10, 10, 10, 10, 10, 10, 20, 30, 20, 30]);
+}
+
+#[test]
+fn bitrate_requests_stay_within_the_limits() {
+    assert_eq!(clamp_bitrate(0), 300_000);
+    assert_eq!(clamp_bitrate(1_500_000), 1_500_000);
+    assert_eq!(clamp_bitrate(50_000_000), 4_000_000);
+}
+
+#[test]
+fn encoders_of_dedicated_cards_come_first() {
+    assert_eq!(parse_vendor_id("VEN_10DE"), Some(0x10DE));
+    assert_eq!(parse_vendor_id("outra coisa"), None);
+    assert!(vendor_rank(Some(0x10DE)) < vendor_rank(Some(0x1002)));
+    assert!(vendor_rank(Some(0x1002)) < vendor_rank(Some(0x8086)));
+    assert!(vendor_rank(Some(0x8086)) < vendor_rank(None));
+}
+
+#[derive(Default)]
+struct Seen {
+    units: u64,
+    keys: u64,
+    bytes: u64,
+    first_was_key: Option<bool>,
+    last_size: (u32, u32),
+    failed: bool,
+}
+
+#[derive(Clone, Default)]
+struct TestOutput {
+    seen: Arc<Mutex<Seen>>,
+    want_key: Arc<AtomicBool>,
+    bitrate: Arc<Mutex<Option<u32>>>,
+}
+
+impl EncoderOutput for TestOutput {
+    fn on_unit(&mut self, unit: &EncodedUnit) {
+        let mut seen = self.seen.lock().unwrap_or_else(|err| err.into_inner());
+        seen.units += 1;
+        seen.keys += u64::from(unit.key);
+        seen.bytes += unit.payload.len() as u64;
+        seen.first_was_key.get_or_insert(unit.key);
+        seen.last_size = (unit.width, unit.height);
+    }
+    fn take_keyframe_request(&mut self) -> bool {
+        self.want_key.swap(false, Ordering::SeqCst)
+    }
+    fn take_bitrate_request(&mut self) -> Option<u32> {
+        self.bitrate
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .take()
+    }
+    fn on_failed(&mut self) {
+        self.seen
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .failed = true;
+    }
+}
+
+/// Um quadro difícil de comprimir, para o encoder precisar respeitar a taxa.
+fn noisy_frame(width: u32, height: u32, seed: u64) -> Nv12Frame {
+    let mut state = seed | 1;
+    let luma = (width * height) as usize;
+    let mut data = vec![128u8; luma + luma / 2];
+    for pixel in &mut data[..luma] {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        *pixel = state as u8;
+    }
+    Nv12Frame {
+        data,
+        width,
+        height,
+    }
+}
+
+fn feed_for(
+    encoder: &HardwareEncoder,
+    width: u32,
+    height: u32,
+    duration: Duration,
+    seed: &mut u64,
+) {
+    let start = Instant::now();
+    while start.elapsed() < duration {
+        *seed += 1;
+        encoder.push(noisy_frame(width, height, *seed));
+        std::thread::sleep(Duration::from_millis(33));
+    }
+}
+
+/// Prova da spec 014, com o encoder real deste PC.
+#[test]
+#[ignore = "precisa de um encoder em hardware"]
+fn hardware_encoder_encodes_obeys_requests_and_resizes() {
+    println!("encoders: {:?}", available_encoders());
+    let output = TestOutput::default();
+    let encoder = HardwareEncoder::start(1280, 720, output.clone()).expect("abrir o encoder");
+    println!("usando: {}", encoder.name());
+    let mut seed = 1;
+
+    feed_for(&encoder, 1280, 720, Duration::from_secs(3), &mut seed);
+    let high = {
+        let seen = output.seen.lock().expect("trava");
+        println!(
+            "3s: quadros={} chaves={} bytes={}",
+            seen.units, seen.keys, seen.bytes
+        );
+        assert!(seen.units > 40, "deveria codificar quadros");
+        assert_eq!(
+            seen.first_was_key,
+            Some(true),
+            "o primeiro quadro deveria ser chave"
+        );
+        seen.bytes as f64 / 3.0
+    };
+
+    let keys_before = output.seen.lock().expect("trava").keys;
+    output.want_key.store(true, Ordering::SeqCst);
+    feed_for(&encoder, 1280, 720, Duration::from_millis(500), &mut seed);
+    assert!(
+        output.seen.lock().expect("trava").keys > keys_before,
+        "o pedido de quadro-chave deveria ser atendido"
+    );
+
+    *output.bitrate.lock().expect("trava") = Some(500_000);
+    feed_for(&encoder, 1280, 720, Duration::from_secs(1), &mut seed);
+    let before = output.seen.lock().expect("trava").bytes;
+    feed_for(&encoder, 1280, 720, Duration::from_secs(3), &mut seed);
+    let low = (output.seen.lock().expect("trava").bytes - before) as f64 / 3.0;
+    println!(
+        "taxa: alta={:.2} Mbps baixa={:.2} Mbps",
+        high * 8.0 / 1e6,
+        low * 8.0 / 1e6
+    );
+    assert!(low < high / 2.0, "reduzir a banda deveria baixar a taxa");
+
+    feed_for(&encoder, 640, 360, Duration::from_secs(2), &mut seed);
+    {
+        let seen = output.seen.lock().expect("trava");
+        assert_eq!(
+            seen.last_size,
+            (640, 360),
+            "deveria recriar o encoder no novo tamanho"
+        );
+        assert!(!seen.failed);
+    }
+    encoder.stop();
 }
