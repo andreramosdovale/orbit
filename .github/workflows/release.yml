@@ -1,0 +1,54 @@
+name: Release
+
+# Publica o instalador do Orbit ao receber uma tag `v<versão>` (ver docs/release.md).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir a tag com a versão do Cargo.toml
+        id: version
+        shell: bash
+        run: |
+          version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::A tag $GITHUB_REF_NAME é diferente da versão $version do Cargo.toml."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: moon/package-lock.json
+
+      - name: npm ci
+        working-directory: moon
+        run: npm ci
+
+      - name: Gerar o instalador
+        working-directory: moon
+        run: npm run tauri build
+
+      - name: Publicar o release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "target/release/bundle/nsis/Orbit_${VERSION}_x64-setup.exe" \
+            --verify-tag --title "Orbit $VERSION" --generate-notes

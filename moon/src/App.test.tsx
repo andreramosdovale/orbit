@@ -6,7 +6,10 @@ import { FakeWebSocket, stubWebSocket } from "./test/fakeWebSocket";
 
 // O comando real depende do core Rust do Tauri.
 vi.mock("./bindings", () => ({
-  commands: { appVersion: async () => "0.0.0" },
+  commands: {
+    appVersion: async () => "0.0.0",
+    checkForUpdate: async () => ({ status: "ok", data: null }),
+  },
 }));
 
 const SERVER = "http://host:7700";

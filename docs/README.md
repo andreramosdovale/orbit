@@ -14,3 +14,5 @@
 - **Funcionalidade nova começa por uma spec** (`/spec`), com critérios de aceite verificáveis.
 - **Decisões não se rediscutem sem um ADR novo** (`/adr`) que substitua o anterior.
 - [`host-setup.md`](host-setup.md): como o host instala e sobe o LiveKit.
+- [`guia-dos-amigos.md`](guia-dos-amigos.md): como um amigo instala o Tailscale e o Orbit e conecta.
+- [`release.md`](release.md): como publicar uma versão do app.

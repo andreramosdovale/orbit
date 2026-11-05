@@ -223,5 +223,7 @@ Gerados em `moon/src/bindings.ts` como `commands.*`.
 | `listCaptureTargets()` | `CaptureTarget[]` | Janelas e telas que dá para transmitir, sem as do próprio Orbit |
 | `startScreenShare(target, url, token)` | `Result<VideoEncoderKind, string>` | Começa a transmitir pelo core Rust. Devolve `hardware` (H.264 na placa de vídeo) ou `software` (VP8 no processador) |
 | `stopScreenShare()` | `Result<null, string>` | Para de transmitir |
+| `checkForUpdate()` | `Result<AvailableUpdate \| null, string>` | Procura uma versão nova no GitHub Releases. `AvailableUpdate` tem só `version`. Em build de desenvolvimento, sempre retorna `null` |
+| `installUpdate()` | `Result<null, string>` | Baixa a versão mais recente, abre o instalador e fecha o app. O instalador reabre a versão nova ([ADR 0019](decisions/0019-distribuicao-por-github-releases-sem-chaves.md)) |
 
 Evento do core para o front, em `events.screenShareEnded`: `{ reason }`, com `target_closed`, `connection_lost` ou `failed`, quando a transmissão acaba sem ter sido parada.

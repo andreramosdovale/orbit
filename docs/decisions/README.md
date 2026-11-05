@@ -22,3 +22,4 @@ Registro curto de cada decisão técnica relevante e do porquê. Use `/adr` para
 | [0016](0016-design-system-proprio.md) | Design system próprio, em CSS puro | Aceita |
 | [0017](0017-sdk-nativo-do-livekit.md) | Transmissão nativa com o SDK Rust do LiveKit, em VP8 | Aceita, alterada pela 0018 |
 | [0018](0018-encoder-em-hardware-por-media-foundation.md) | Encoder em hardware por Media Foundation, publicado sem recodificar | Aceita |
+| [0019](0019-distribuicao-por-github-releases-sem-chaves.md) | Distribuição por GitHub Releases, sem chaves de assinatura | Aceita |

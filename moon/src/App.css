@@ -9,6 +9,10 @@
   justify-content: center;
 }
 
+.update-notice {
+  margin-top: var(--space-2);
+}
+
 .version {
   margin: var(--space-2) 0;
   color: var(--text-muted);

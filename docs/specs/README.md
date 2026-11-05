@@ -18,3 +18,4 @@ Uma spec por funcionalidade, escrita **antes** do código (use `/spec`). Nomeie 
 | 012 | [Transmissão de tela (v1, pelo webview)](012-transmissao-de-tela.md) | 4 | Substituída pela 013 |
 | 013 | [Transmissão de tela nativa com áudio por aplicativo](013-transmissao-nativa.md) | 5 | Em andamento |
 | 014 | [Encoding em hardware da transmissão](014-encoding-em-hardware.md) | 5 | Em andamento |
+| 015 | [Instalador e atualização automática](015-distribuicao.md) | 6 | Em andamento |

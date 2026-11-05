@@ -51,5 +51,5 @@ Substituída pela Fase 5: a captura pelo webview foi removida antes do teste com
 
 ## Fase 6: Distribuição
 
-- [ ] Instalador (NSIS) e auto-update (`tauri-plugin-updater`)
-- [ ] Guia para os amigos: instalar Tailscale + Orbit e conectar
+- [ ] Instalador (NSIS) e atualização automática ([spec 015](specs/015-distribuicao.md), [ADR 0019](decisions/0019-distribuicao-por-github-releases-sem-chaves.md), falta publicar um release de verdade)
+- [ ] Guia para os amigos: [instalar Tailscale + Orbit e conectar](guia-dos-amigos.md) ([spec 015](specs/015-distribuicao.md), falta um amigo testar)

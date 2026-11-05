@@ -6,6 +6,7 @@ import { Register } from "./features/auth/Register";
 import { connectSession, retryDelayMs, type Session, SessionError } from "./features/auth/session";
 import { clearToken, loadServer, loadToken, saveToken } from "./features/auth/storage";
 import { ChatLayout } from "./features/chat/ChatLayout";
+import { UpdateNotice } from "./features/update/UpdateNotice";
 import "./App.css";
 
 const SESSION_EXPIRED = "Sua sessão expirou. Entre novamente.";
@@ -163,6 +164,7 @@ function App() {
           </Button>
         </Surface>
       )}
+      <UpdateNotice />
       <p className="version">Orbit v{version}</p>
     </main>
   );

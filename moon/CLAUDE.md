@@ -13,6 +13,7 @@ src/                     # front (React)
 ├── features/auth/       # api.ts (fetch no sun), session.ts (/ws autenticado), storage.ts (servidor e token), Login, Register, Connected
 ├── features/chat/       # api.ts (canais e histórico), ChatLayout (tela depois de entrar e cache), ChannelMessages (histórico + ao vivo), MessageList, Composer, MemberList (presença)
 ├── features/voice/      # api.ts, room.ts (único lugar que usa o livekit-client), useVoiceRoom, nativeShare.ts (único lugar que chama o core), VoiceSection, VoicePanel, SharePicker, ScreenStage
+├── features/update/     # UpdateNotice: aviso de versão nova, visível em todas as telas (ADR 0019)
 ├── test/                # setup do Vitest e WebSocket simulado
 └── bindings.ts          # GERADO pelo Rust: nunca edite
 scripts/dev.mjs          # npm run dev:app: abre o app na primeira porta livre
@@ -20,8 +21,10 @@ src-tauri/               # core Rust
 ├── src/lib.rs           # comandos + specta_builder() + run()
 ├── src/capture/          # transmissão nativa: video.rs, audio.rs, encoder.rs (H.264 na placa; o unsafe da captura), publish.rs, commands.rs (ADR 0017 e 0018)
 ├── src/mic_permission.rs # libera o microfone às origens do app (ADR 0015)
+├── src/update.rs        # procura e instala versões novas pelo GitHub Releases (ADR 0019)
 ├── src/main.rs          # só chama moon_lib::run()
 ├── tests/bindings.rs    # regenera bindings.ts (a CI checa se mudou)
+├── tests/distribution.rs # fixa a configuração do instalador e a URL das atualizações
 ├── build.rs             # tauri-build + manifest do Windows para os testes
 ├── capabilities/        # permissões do Tauri (o que o webview pode chamar)
 └── tauri.conf.json
@@ -76,4 +79,5 @@ npm run build         # tsc + vite build → dist/ (necessário antes de compila
 npm run check         # Biome em modo CI
 npm test              # testes de front (Vitest)
 cargo test -p moon    # (na raiz) regenera bindings.ts
+npm run tauri build   # gera o instalador (ver docs/release.md)
 ```
